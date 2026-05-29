@@ -63,7 +63,6 @@ def format_time(date_str):
         return date_str
 
 def build_message(row):
-    # row = [date, range, number, cli, sms, ...]
     date_str = str(row[0]) if len(row) > 0 else "N/A"
     range_   = str(row[1]) if len(row) > 1 else "N/A"
     number   = str(row[2]) if len(row) > 2 else "N/A"
@@ -85,21 +84,29 @@ def build_message(row):
 def main():
     session = requests.Session()
     session.headers.update({
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     })
 
-    # Step 1: Login
+    # ==================== LOGIN ====================
     login_url  = f"{BASE_URL}/login"
     signin_url = f"{BASE_URL}/signin"
+
     resp = session.get(login_url, timeout=15)
     soup = BeautifulSoup(resp.text, "html.parser")
     captcha_answer = solve_captcha(soup)
+
+    # Better login with proper headers
+    session.headers.update({
+        "Referer": login_url,
+        "Origin": BASE_URL,
+    })
 
     resp = session.post(signin_url, data={
         "username": USERNAME,
         "password": PASSWORD,
         "capt":     captcha_answer,
     }, timeout=15, allow_redirects=True)
+
     print(f"Login URL: {resp.url}")
 
     if "login" in resp.url.lower() or "signin" in resp.url.lower():
@@ -107,9 +114,10 @@ def main():
         return
     print("✅ Login OK!")
 
-    # Step 2: AJAX endpoint দিয়ে data আনো
+    # ==================== AJAX SMS DATA ====================
     today = date.today().strftime("%Y-%m-%d")
     ajax_url = f"{BASE_URL}/client/res/data_smscdr.php"
+
     params = {
         "fdate1":    f"{today} 00:00:00",
         "fdate2":    f"{today} 23:59:59",
@@ -123,26 +131,40 @@ def main():
         "fgcli":     "",
     }
 
-    session.headers.update({"X-Requested-With": "XMLHttpRequest"})
-    r = session.get(ajax_url, params=params, timeout=15)
+    # খুব গুরুত্বপূর্ণ হেডার
+    session.headers.update({
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": f"{BASE_URL}/client/SMSDashboard",
+        "Origin": BASE_URL,
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Accept-Language": "en-US,en;q=0.9",
+    })
+
+    print(f"🔄 Fetching SMS from: {ajax_url}")
+    r = session.get(ajax_url, params=params, timeout=20)
+
     print(f"AJAX status: {r.status_code}")
-    print(f"AJAX response preview: {r.text[:300]}")
+    
+    if r.status_code != 200:
+        print("❌ AJAX ERROR! Full response below:")
+        print(r.text[:1200])
+        return
+
+    print(f"AJAX response preview: {r.text[:400]}")
 
     try:
         data = r.json()
     except Exception as e:
         print(f"JSON error: {e}")
+        print("Raw response:", r.text[:600])
         return
 
-    # DataTables format check
+    # Data processing
     rows = []
     if "aaData" in data:
         rows = data["aaData"]
     elif "data" in data:
         rows = data["data"]
-    else:
-        print(f"Unknown format, keys: {list(data.keys())}")
-        return
 
     print(f"Total rows: {len(rows)}")
     if rows:
@@ -152,7 +174,7 @@ def main():
         print("No SMS today.")
         return
 
-    # Step 3: New messages only
+    # New SMS only
     seen = load_seen()
     new_rows = []
     for row in rows:
@@ -164,7 +186,6 @@ def main():
 
     print(f"New messages: {len(new_rows)}")
 
-    # Step 4: Telegram
     for row_id, row in new_rows:
         send_telegram(build_message(row))
         seen.add(row_id)
@@ -174,4 +195,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
