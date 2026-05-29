@@ -58,7 +58,15 @@ def build_message(row):
     number   = str(row[2]) if len(row) > 2 else "N/A"
     cli      = str(row[3]) if len(row) > 3 else "N/A"
     sms_text = " ".join(str(x) for x in row[4:]) if len(row) > 4 else "N/A"
-    return f"📱💥 <b>NEW SMS ALERT</b> 💥📱\n\n📍 Range » {range_}\n🔖 CLI » {cli}\n📞 Number » {number}\n\n💬 {sms_text}\n\n⏰ {format_time(date_str)}"
+    
+    return (
+        f"📱💥 <b>NEW SMS ALERT</b> 💥📱\n\n"
+        f"📍 Range » {range_}\n"
+        f"🔖 CLI » {cli}\n"
+        f"📞 Number » {number}\n\n"
+        f"💬 {sms_text}\n\n"
+        f"⏰ {format_time(date_str)}"
+    )
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 def main():
@@ -87,35 +95,30 @@ def main():
     print(f"Page status: {resp.status_code}")
 
     soup = BeautifulSoup(resp.text, "html.parser")
-
     tables = soup.find_all("table")
-    print(f"Total tables found: {len(tables)}")
 
     rows = []
-    for i, table in enumerate(tables):
-        print(f"\n--- Table {i+1} ---")
-        print(f"Class: {table.get('class')}")
-        print(f"ID: {table.get('id')}")
-        
-        trs = table.find_all("tr")
-        print(f"Total <tr> found: {len(trs)}")
-
-        for j, tr in enumerate(trs):
+    for table in tables:
+        for tr in table.find_all("tr"):
             tds = tr.find_all(["td", "th"])
-            cell_count = len(tds)
-            if cell_count >= 3:   # কমপক্ষে ৩টা সেল থাকলেও দেখাবে
-                row_data = [td.get_text(strip=True) for td in tds]
-                rows.append(row_data)
-                if j < 5:   # প্রথম ৫টা রো দেখাবে
-                    print(f"Row {j} | Cells: {cell_count} | Data: {row_data}")
+            if len(tds) < 5:
+                continue
+                
+            row_data = [td.get_text(strip=True) for td in tds]
+            
+            # শক্ত ফিল্টার — শুধু আসল SMS রো নেবে
+            first_cell = row_data[0].strip()
+            if not re.search(r'\d{4}-\d{2}-\d{2}', first_cell):   # তারিখ আকারে না থাকলে বাদ
+                continue
+            if any(x in first_cell.lower() for x in ["date", "total"]):
+                continue
+                
+            rows.append(row_data)
+            print(f"✅ Valid SMS row found: {row_data[:5]}...")
 
-    print(f"\nTotal SMS rows extracted: {len(rows)}")
+    print(f"\nTotal valid SMS rows extracted: {len(rows)}")
 
-    if not rows:
-        print("❌ Still no rows found.")
-        return
-
-    # New SMS processing
+    # নতুন SMS শুধু
     seen = load_seen()
     new_rows = []
     for row in rows:
@@ -123,7 +126,7 @@ def main():
         if row_id not in seen:
             new_rows.append((row_id, row))
 
-    print(f"New messages: {len(new_rows)}")
+    print(f"New messages to notify: {len(new_rows)}")
 
     for row_id, row in new_rows:
         send_telegram(build_message(row))
