@@ -66,7 +66,7 @@ def build_message(row):
     range_   = str(row[1]) if len(row) > 1 else "N/A"
     number   = str(row[2]) if len(row) > 2 else "N/A"
     cli      = str(row[3]) if len(row) > 3 else "N/A"
-    sms_text = " ".join(str(x) for x in row[4:]) if len(row) > 4 else "N/A"
+    sms_text = str(row[4]) if len(row) > 4 else "N/A"  # ← শুধু row[4]
     sms_text = sms_text.replace("$", "").strip()
 
     return (
@@ -144,6 +144,11 @@ def main():
     for row in rows:
         if isinstance(row, dict):
             row = list(row.values())
+        
+        # ফাঁকা/invalid row বাদ দাও
+        if str(row[2]).strip() in ("0", "", "N/A"):
+            continue
+        
         row_id = "|".join(str(c) for c in row[:5])
         if row_id not in seen:
             new_rows.append((row_id, row))
