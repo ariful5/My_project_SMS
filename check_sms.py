@@ -33,9 +33,7 @@ def send_telegram(text):
         "text": text,
         "parse_mode": "HTML",
         "reply_markup": {
-            "inline_keyboard": [[
-                {"text": "👨‍💻 Developer", "url": DEVELOPER}
-            ]]
+            "inline_keyboard": [[{"text": "👨‍💻 Developer", "url": DEVELOPER}]]
         }
     }
     r = requests.post(url, json=payload, timeout=10)
@@ -95,91 +93,66 @@ def main():
     soup = BeautifulSoup(resp.text, "html.parser")
     captcha_answer = solve_captcha(soup)
 
-    # Better login with proper headers
-    session.headers.update({
-        "Referer": login_url,
-        "Origin": BASE_URL,
-    })
-
+    session.headers.update({"Referer": login_url})
     resp = session.post(signin_url, data={
         "username": USERNAME,
         "password": PASSWORD,
-        "capt":     captcha_answer,
+        "capt": captcha_answer,
     }, timeout=15, allow_redirects=True)
 
     print(f"Login URL: {resp.url}")
-
     if "login" in resp.url.lower() or "signin" in resp.url.lower():
         print("❌ Login failed!")
         return
     print("✅ Login OK!")
 
-    # ==================== AJAX SMS DATA ====================
-    today = date.today().strftime("%Y-%m-%d")
-    ajax_url = f"{BASE_URL}/client/res/data_smscdr.php"
+    # ==================== SCRAPE DASHBOARD HTML ====================
+    dashboard_url = f"{BASE_URL}/client/SMSDashboard"
+    print(f"📄 Fetching dashboard: {dashboard_url}")
 
-    params = {
-        "fdate1":    f"{today} 00:00:00",
-        "fdate2":    f"{today} 23:59:59",
-        "frange":    "",
-        "fnum":      "",
-        "fcli":      "",
-        "fgdate":    "",
-        "fgmonth":   "",
-        "fgrange":   "",
-        "fgnumber":  "",
-        "fgcli":     "",
-    }
+    resp = session.get(dashboard_url, timeout=20)
+    print(f"Dashboard status: {resp.status_code}")
 
-    # খুব গুরুত্বপূর্ণ হেডার
-    session.headers.update({
-        "X-Requested-With": "XMLHttpRequest",
-        "Referer": f"{BASE_URL}/client/SMSDashboard",
-        "Origin": BASE_URL,
-        "Accept": "application/json, text/javascript, */*; q=0.01",
-        "Accept-Language": "en-US,en;q=0.9",
-    })
-
-    print(f"🔄 Fetching SMS from: {ajax_url}")
-    r = session.get(ajax_url, params=params, timeout=20)
-
-    print(f"AJAX status: {r.status_code}")
-    
-    if r.status_code != 200:
-        print("❌ AJAX ERROR! Full response below:")
-        print(r.text[:1200])
+    if resp.status_code != 200:
+        print("❌ Failed to load dashboard")
+        print(resp.text[:500])
         return
 
-    print(f"AJAX response preview: {r.text[:400]}")
+    soup = BeautifulSoup(resp.text, "html.parser")
 
-    try:
-        data = r.json()
-    except Exception as e:
-        print(f"JSON error: {e}")
-        print("Raw response:", r.text[:600])
-        return
+    # Debug: পেজ টাইটেল ও কয়টা টেবিল আছে
+    print(f"Page Title: {soup.title.string if soup.title else 'No title'}")
+    tables = soup.find_all("table")
+    print(f"Total tables found: {len(tables)}")
 
-    # Data processing
+    # SMS টেবিল খুঁজে বের করা (সবচেয়ে বড় টেবিল বা DataTable)
     rows = []
-    if "aaData" in data:
-        rows = data["aaData"]
-    elif "data" in data:
-        rows = data["data"]
+    for table in tables:
+        tbody = table.find("tbody")
+        if tbody:
+            trs = tbody.find_all("tr")
+            if len(trs) > 3:   # অনেকগুলো রো থাকলে এটাই SMS টেবিল
+                print(f"✅ Found promising table with {len(trs)} rows")
+                for tr in trs:
+                    tds = tr.find_all("td")
+                    if len(tds) >= 5:
+                        row_data = [td.get_text(strip=True) for td in tds]
+                        rows.append(row_data)
+                break  # প্রথম বড় টেবিল পেলেই নেব
 
-    print(f"Total rows: {len(rows)}")
+    print(f"Total SMS rows extracted: {len(rows)}")
     if rows:
         print(f"Sample row: {rows[0]}")
 
     if not rows:
-        print("No SMS today.")
+        print("❌ No SMS rows found in HTML. Need more debug.")
+        print("First 800 chars of dashboard:", resp.text[:800])
         return
 
-    # New SMS only
+    # ==================== NEW SMS ONLY ====================
     seen = load_seen()
     new_rows = []
     for row in rows:
-        if isinstance(row, dict):
-            row = list(row.values())
         row_id = "|".join(str(c) for c in row[:5])
         if row_id not in seen:
             new_rows.append((row_id, row))
