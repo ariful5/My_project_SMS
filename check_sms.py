@@ -52,8 +52,6 @@ def solve_captcha(soup):
         return str(ans)
     return "0"
 
-def from datetime import datetime, date, timezone, timedelta
-
 def format_time(date_str):
     try:
         dt = datetime.strptime(date_str.strip(), "%Y-%m-%d %H:%M:%S")
