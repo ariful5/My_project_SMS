@@ -5,8 +5,8 @@ import re
 from bs4 import BeautifulSoup
 from datetime import datetime
 
-# ── Config ───────────────────────────────────────────────────────────────────
-BASE_URL     = os.environ["LAMIX_URL"]
+# ── Config from GitHub Secrets ───────────────────────────────────────────────
+BASE_URL     = os.environ["LAMIX_URL"]       # http://51.210.208.26/ints
 USERNAME     = os.environ["LAMIX_USERNAME"]
 PASSWORD     = os.environ["LAMIX_PASSWORD"]
 TG_TOKEN     = os.environ["TELEGRAM_TOKEN"]
@@ -34,28 +34,31 @@ def send_telegram(text):
         "parse_mode": "HTML",
         "reply_markup": {
             "inline_keyboard": [[
-                {"text": "👨‍💻 Developer", "url": DEVELOPER}
+                {
+                    "text": "👨‍💻 Developer",
+                    "url": DEVELOPER
+                }
             ]]
         }
     }
     r = requests.post(url, json=payload, timeout=10)
     print("Telegram:", r.status_code)
 
-def solve_captcha(soup):
-    full_text = soup.get_text(" ", strip=True)
-    match = re.search(r'(\d+)\s*\+\s*(\d+)', full_text)
+def solve_captcha(html_text):
+    """Solve simple math captcha like 'What is 6 + 7 = ?'"""
+    match = re.search(r'(\d+)\s*\+\s*(\d+)', html_text)
     if match:
-        ans = int(match.group(1)) + int(match.group(2))
-        print(f"Captcha: {match.group(1)} + {match.group(2)} = {ans}")
-        return str(ans)
-    match = re.search(r'(\d+)\s*-\s*(\d+)', full_text)
+        return str(int(match.group(1)) + int(match.group(2)))
+    match = re.search(r'(\d+)\s*-\s*(\d+)', html_text)
     if match:
-        ans = int(match.group(1)) - int(match.group(2))
-        print(f"Captcha: {match.group(1)} - {match.group(2)} = {ans}")
-        return str(ans)
+        return str(int(match.group(1)) - int(match.group(2)))
+    match = re.search(r'(\d+)\s*\*\s*(\d+)', html_text)
+    if match:
+        return str(int(match.group(1)) * int(match.group(2)))
     return "0"
 
 def format_time(date_str):
+    """2026-05-29 01:22:05  →  01:22 AM | 29.05.26"""
     try:
         dt = datetime.strptime(date_str.strip(), "%Y-%m-%d %H:%M:%S")
         return dt.strftime("%I:%M %p | %d.%m.%y")
@@ -63,12 +66,15 @@ def format_time(date_str):
         return date_str
 
 def build_message(row):
+    # row = [date, range, number, cli, sms]
     date_str = row[0] if len(row) > 0 else "N/A"
     range_   = row[1] if len(row) > 1 else "N/A"
     number   = row[2] if len(row) > 2 else "N/A"
     cli      = row[3] if len(row) > 3 else "N/A"
     sms_text = row[4] if len(row) > 4 else "N/A"
+
     time_fmt = format_time(date_str)
+
     return (
         f"📱💥 <b>NEW SMS ALERT</b> 💥📱\n\n"
         f"📱 SMS Received\n"
@@ -79,142 +85,87 @@ def build_message(row):
         f"⏰ {time_fmt}"
     )
 
-def login(session):
-    login_url  = f"{BASE_URL}/login"
-    signin_url = f"{BASE_URL}/signin"
-    resp = session.get(login_url, timeout=15)
-    soup = BeautifulSoup(resp.text, "html.parser")
-    captcha_answer = solve_captcha(soup)
-    login_data = {
-        "username": USERNAME,
-        "password": PASSWORD,
-        "capt":     captcha_answer,
-    }
-    resp = session.post(signin_url, data=login_data, timeout=15, allow_redirects=True)
-    print(f"Login URL: {resp.url}")
-    if "login" in resp.url.lower() or "signin" in resp.url.lower():
-        print("❌ Login failed!")
-        return False
-    print("✅ Login OK!")
-    return True
-
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
     session = requests.Session()
     session.headers.update({
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        "X-Requested-With": "XMLHttpRequest"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
     })
 
-    if not login(session):
+    # Step 1: Load login page & solve captcha
+    login_url = f"{BASE_URL}/login"
+    resp = session.get(login_url, timeout=15)
+    captcha_answer = solve_captcha(resp.text)
+    print(f"Captcha answer: {captcha_answer}")
+
+    # Get CSRF token if exists
+    soup = BeautifulSoup(resp.text, "html.parser")
+    csrf = ""
+    token_input = soup.find("input", {"name": "_token"})
+    if token_input:
+        csrf = token_input.get("value", "")
+
+    # Step 2: Login
+    login_data = {
+        "_token":   csrf,
+        "username": USERNAME,
+        "password": PASSWORD,
+        "captcha":  captcha_answer,
+    }
+    resp = session.post(login_url, data=login_data, timeout=15, allow_redirects=True)
+    print(f"After login URL: {resp.url}")
+
+    if "login" in resp.url:
+        print("❌ Login failed!")
         return
 
-    # Step 1: CDR page থেকে AJAX URL খোঁজো
+    # Step 3: Go to SMS CDR Stats page
     cdr_url = f"{BASE_URL}/client/SMSCDRStats"
     resp = session.get(cdr_url, timeout=15)
-    page_text = resp.text
+    soup = BeautifulSoup(resp.text, "html.parser")
 
-    # JavaScript থেকে DataTables ajax URL বের করো
-    ajax_url = None
-    match = re.search(r'ajax["\s:]+["\']([^"\']+)["\']', page_text)
-    if match:
-        ajax_url = match.group(1)
-        if not ajax_url.startswith("http"):
-            ajax_url = BASE_URL + "/" + ajax_url.lstrip("/")
-        print(f"AJAX URL found: {ajax_url}")
-
-    rows = []
-
-    # Step 2: AJAX দিয়ে data আনার চেষ্টা
-    if ajax_url:
-        from datetime import date
-        today = date.today().strftime("%Y-%m-%d")
-        params = {
-            "draw": 1,
-            "start": 0,
-            "length": 100,
-            "date_from": f"{today} 00:00:00",
-            "date_to":   f"{today} 23:59:59",
-        }
-        session.headers.update({"X-Requested-With": "XMLHttpRequest"})
-        r = session.get(ajax_url, params=params, timeout=15)
-        print(f"AJAX status: {r.status_code}")
-        try:
-            data = r.json()
-            print(f"AJAX data keys: {list(data.keys())}")
-            # DataTables format: {"data": [[col1, col2, ...]]}
-            if "data" in data:
-                rows = data["data"]
-                print(f"Rows from AJAX: {len(rows)}")
-            elif "aaData" in data:
-                rows = data["aaData"]
-                print(f"Rows from AJAX (aaData): {len(rows)}")
-        except Exception as e:
-            print(f"AJAX JSON parse error: {e}")
-            print(f"AJAX response: {r.text[:500]}")
-
-    # Step 3: AJAX কাজ না করলে common endpoint গুলো try করো
-    if not rows:
-        print("Trying common AJAX endpoints...")
-        endpoints = [
-            "/client/getSMSCDR",
-            "/client/sms-cdr-data",
-            "/client/SMSCDRData",
-            "/client/cdr-data",
-            "/client/getCDRStats",
-        ]
-        from datetime import date
-        today = date.today().strftime("%Y-%m-%d")
-        params = {
-            "draw": 1, "start": 0, "length": 100,
-            "date_from": f"{today} 00:00:00",
-            "date_to":   f"{today} 23:59:59",
-        }
-        for ep in endpoints:
-            try:
-                r = session.get(f"{BASE_URL}{ep}", params=params, timeout=10)
-                if r.status_code == 200:
-                    data = r.json()
-                    if "data" in data or "aaData" in data:
-                        rows = data.get("data", data.get("aaData", []))
-                        print(f"✅ Found data at: {ep} ({len(rows)} rows)")
-                        break
-            except:
-                pass
-
-    if not rows:
-        print("❌ No data found. Printing page JS for debug:")
-        # JS snippet দেখাও
-        for line in page_text.split("\n"):
-            if "ajax" in line.lower() or "datatable" in line.lower():
-                print(f"  JS: {line.strip()[:150]}")
+    # Step 4: Parse table
+    table = soup.find("table")
+    if not table:
+        print("❌ Table not found")
         return
 
-    if rows:
-        print(f"Sample row: {rows[0]}")
+    tbody = table.find("tbody")
+    if not tbody:
+        print("❌ No tbody found")
+        return
 
-    # Step 4: New messages only
+    rows = []
+    for tr in tbody.find_all("tr"):
+        cells = [td.get_text(strip=True) for td in tr.find_all("td")]
+        if cells:
+            rows.append(cells)
+
+    print(f"Total rows found: {len(rows)}")
+
+    if not rows:
+        print("No SMS records.")
+        return
+
+    # Step 5: Find new messages
     seen = load_seen()
     new_rows = []
+
     for row in rows:
-        if isinstance(row, list):
-            row_id = "|".join(str(c) for c in row[:5])
-        elif isinstance(row, dict):
-            row_id = str(row)
-            row = list(row.values())
-        else:
-            continue
+        row_id = "|".join(row[:5])
         if row_id not in seen:
             new_rows.append((row_id, row))
 
     print(f"New messages: {len(new_rows)}")
 
-    # Step 5: Telegram
+    # Step 6: Send Telegram alerts
     for row_id, row in new_rows:
-        send_telegram(build_message(row))
+        msg = build_message(row)
+        send_telegram(msg)
         seen.add(row_id)
 
+    # Step 7: Save seen IDs
     save_seen(seen)
     print("✅ Done!")
 
