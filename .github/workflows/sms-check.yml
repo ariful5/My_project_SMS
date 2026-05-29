@@ -1,7 +1,9 @@
 name: Lamix SMS Notifier
 
 on:
-  workflow_dispatch:  # cron-job.org এই trigger ব্যবহার করবে
+  workflow_dispatch:      # ম্যানুয়ালি রান করার জন্য
+  # schedule:             # পরে চাইলে ক্রোন জব চালু করতে পারবেন
+  #   - cron: '*/10 * * * *'   # প্রতি ১০ মিনিট অন্তর
 
 jobs:
   check-sms:
@@ -15,7 +17,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: seen_ids.json
-          key: seen-ids-${{ github.run_id }}
+          key: seen-ids-v2
           restore-keys: |
             seen-ids-
 
@@ -35,4 +37,3 @@ jobs:
           TELEGRAM_TOKEN:   ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python check_sms.py
-        
