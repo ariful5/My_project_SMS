@@ -83,15 +83,40 @@ def main():
         return
     print("✅ Login OK!")
 
-    # AJAX with very aggressive headers
+    # Correct AJAX Request with all parameters
     today = date.today().strftime("%Y-%m-%d")
     ajax_url = f"{BASE_URL}/client/res/data_smscdr.php"
 
     params = {
         "fdate1": f"{today} 00:00:00",
         "fdate2": f"{today} 23:59:59",
-        "frange": "", "fnum": "", "fcli": "",
-        "fgdate": "", "fgmonth": "", "fgrange": "", "fgnumber": "", "fgcli": ""
+        "frange": "",
+        "fnum": "",
+        "fcli": "",
+        "fgdate": "",
+        "fgmonth": "",
+        "fgrange": "",
+        "fgnumber": "",
+        "fgcli": "",
+        "fg": "0",
+        "sEcho": "1",
+        "iColumns": "7",
+        "sColumns": ",,,,,,",
+        "iDisplayStart": "0",
+        "iDisplayLength": "25",
+        "mDataProp_0": "0",
+        "mDataProp_1": "1",
+        "mDataProp_2": "2",
+        "mDataProp_3": "3",
+        "mDataProp_4": "4",
+        "mDataProp_5": "5",
+        "mDataProp_6": "6",
+        "sSearch": "",
+        "bRegex": "false",
+        "iSortCol_0": "0",
+        "sSortDir_0": "desc",
+        "iSortingCols": "1",
+        "_": str(int(datetime.now().timestamp() * 1000))
     }
 
     session.headers.update({
@@ -100,14 +125,10 @@ def main():
         "Origin": BASE_URL,
         "Accept": "application/json, text/javascript, */*; q=0.01",
         "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Connection": "keep-alive",
-        "Cache-Control": "no-cache",
-        "Pragma": "no-cache",
     })
 
-    print("🔄 Trying AJAX with maximum headers...")
-    r = session.get(ajax_url, params=params, timeout=25)
+    print("🔄 Fetching SMS via correct AJAX...")
+    r = session.get(ajax_url, params=params, timeout=20)
 
     print(f"AJAX status: {r.status_code}")
 
@@ -115,13 +136,13 @@ def main():
         try:
             data = r.json()
             rows = data.get("aaData") or data.get("data") or []
-            print(f"✅ AJAX Success! Rows found: {len(rows)}")
+            print(f"✅ Success! Total SMS rows: {len(rows)}")
         except:
-            print("JSON parse error")
+            print("JSON parse failed")
             rows = []
     else:
-        print("❌ AJAX Failed. Response:")
-        print(r.text[:800] if r.text else "Empty response")
+        print("❌ Failed")
+        print(r.text[:500])
         rows = []
 
     # Process new messages
