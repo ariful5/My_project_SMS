@@ -81,51 +81,39 @@ def main():
         return
     print("✅ Login OK!")
 
-    # HTML Scraping (AJAX currently failing)
+    # Scrape HTML
     sms_url = f"{BASE_URL}/client/SMSCDRStats"
     print(f"📄 Scraping HTML page: {sms_url}")
     resp = session.get(sms_url, timeout=20)
-    print(f"Page status: {resp.status_code}")
 
     soup = BeautifulSoup(resp.text, "html.parser")
+    table = soup.find("table", id="dt") or soup.find("table", class_=re.compile("data-tbl"))
 
-    # Find the main data table
-    table = soup.find("table", {"id": "dt"}) or soup.find("table", class_=re.compile("data-tbl"))
-    if not table:
-        table = soup.find("table")
-
+    rows = []
     if table:
-        print(f"✅ Main table found - Class: {table.get('class')}, ID: {table.get('id')}")
-        
-        # Print table header for reference
-        header = table.find("thead") or table.find("tr")
-        if header:
-            print("Table header:", [th.get_text(strip=True) for th in header.find_all(["th", "td"])])
+        print(f"✅ Table found - ID: {table.get('id')}")
 
-        rows = []
         for tr in table.find_all("tr"):
             tds = tr.find_all("td")
             if len(tds) >= 5:
                 row_data = [td.get_text(strip=True) for td in tds]
-                first_cell = row_data[0].strip()
+                print(f"Row found: {row_data[:5]}...")   # সব রো দেখাবে (ডিবাগ)
                 
-                # Only real SMS rows (have date format)
-                if re.search(r'\d{4}-\d{2}-\d{2}', first_cell):
+                # আরও নমনীয় ফিল্টার
+                first_cell = row_data[0].strip()
+                if re.search(r'\d{4}-\d{2}-\d{2}', first_cell) or len(first_cell) > 15:
                     rows.append(row_data)
-                    print(f"✅ Valid SMS row: {row_data[:5]}...")
 
-        print(f"\nTotal valid SMS rows extracted: {len(rows)}")
-    else:
-        print("❌ No table found on page")
-        rows = []
+    print(f"\nTotal valid SMS rows extracted: {len(rows)}")
 
-    # Process new messages
+    # New messages only
     seen = load_seen()
     new_rows = []
     for row in rows:
         row_id = "|".join(str(c) for c in row[:5])
         if row_id not in seen:
             new_rows.append((row_id, row))
+            print(f"🆕 New SMS detected: {row[:3]}")
 
     print(f"New messages to notify: {len(new_rows)}")
 
