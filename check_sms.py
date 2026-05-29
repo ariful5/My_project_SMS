@@ -53,7 +53,6 @@ def solve_captcha(soup):
         ans = int(match.group(1)) - int(match.group(2))
         print(f"Captcha: {match.group(1)} - {match.group(2)} = {ans}")
         return str(ans)
-    print("Captcha not found!")
     return "0"
 
 def format_time(date_str):
@@ -80,76 +79,138 @@ def build_message(row):
         f"⏰ {time_fmt}"
     )
 
+def login(session):
+    login_url  = f"{BASE_URL}/login"
+    signin_url = f"{BASE_URL}/signin"
+    resp = session.get(login_url, timeout=15)
+    soup = BeautifulSoup(resp.text, "html.parser")
+    captcha_answer = solve_captcha(soup)
+    login_data = {
+        "username": USERNAME,
+        "password": PASSWORD,
+        "capt":     captcha_answer,
+    }
+    resp = session.post(signin_url, data=login_data, timeout=15, allow_redirects=True)
+    print(f"Login URL: {resp.url}")
+    if "login" in resp.url.lower() or "signin" in resp.url.lower():
+        print("❌ Login failed!")
+        return False
+    print("✅ Login OK!")
+    return True
+
 # ── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
     session = requests.Session()
     session.headers.update({
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "X-Requested-With": "XMLHttpRequest"
     })
 
-    # Step 1: Login page
-    login_url  = f"{BASE_URL}/login"
-    signin_url = f"{BASE_URL}/signin"   # ✅ form action = signin
-
-    resp = session.get(login_url, timeout=15)
-    soup = BeautifulSoup(resp.text, "html.parser")
-    captcha_answer = solve_captcha(soup)
-
-    # Step 2: POST to signin ✅
-    login_data = {
-        "username": USERNAME,
-        "password": PASSWORD,
-        "capt":     captcha_answer,   # ✅ field name = capt
-    }
-
-    resp = session.post(signin_url, data=login_data, timeout=15, allow_redirects=True)
-    print(f"Login URL: {resp.url}")
-
-    if "login" in resp.url.lower() or "signin" in resp.url.lower():
-        print("❌ Login failed!")
+    if not login(session):
         return
 
-    print("✅ Login OK!")
-
-    # Step 3: SMS CDR Stats
+    # Step 1: CDR page থেকে AJAX URL খোঁজো
     cdr_url = f"{BASE_URL}/client/SMSCDRStats"
     resp = session.get(cdr_url, timeout=15)
-    soup = BeautifulSoup(resp.text, "html.parser")
+    page_text = resp.text
 
-    # Step 4: Parse table
-    table = soup.find("table")
-    if not table:
-        print("❌ Table not found")
-        return
-
-    tbody = table.find("tbody")
-    if not tbody:
-        print("❌ No tbody")
-        return
+    # JavaScript থেকে DataTables ajax URL বের করো
+    ajax_url = None
+    match = re.search(r'ajax["\s:]+["\']([^"\']+)["\']', page_text)
+    if match:
+        ajax_url = match.group(1)
+        if not ajax_url.startswith("http"):
+            ajax_url = BASE_URL + "/" + ajax_url.lstrip("/")
+        print(f"AJAX URL found: {ajax_url}")
 
     rows = []
-    for tr in tbody.find_all("tr"):
-        cells = [td.get_text(strip=True) for td in tr.find_all("td")]
-        if cells:
-            rows.append(cells)
 
-    print(f"Total rows: {len(rows)}")
+    # Step 2: AJAX দিয়ে data আনার চেষ্টা
+    if ajax_url:
+        from datetime import date
+        today = date.today().strftime("%Y-%m-%d")
+        params = {
+            "draw": 1,
+            "start": 0,
+            "length": 100,
+            "date_from": f"{today} 00:00:00",
+            "date_to":   f"{today} 23:59:59",
+        }
+        session.headers.update({"X-Requested-With": "XMLHttpRequest"})
+        r = session.get(ajax_url, params=params, timeout=15)
+        print(f"AJAX status: {r.status_code}")
+        try:
+            data = r.json()
+            print(f"AJAX data keys: {list(data.keys())}")
+            # DataTables format: {"data": [[col1, col2, ...]]}
+            if "data" in data:
+                rows = data["data"]
+                print(f"Rows from AJAX: {len(rows)}")
+            elif "aaData" in data:
+                rows = data["aaData"]
+                print(f"Rows from AJAX (aaData): {len(rows)}")
+        except Exception as e:
+            print(f"AJAX JSON parse error: {e}")
+            print(f"AJAX response: {r.text[:500]}")
+
+    # Step 3: AJAX কাজ না করলে common endpoint গুলো try করো
     if not rows:
-        print("No SMS.")
+        print("Trying common AJAX endpoints...")
+        endpoints = [
+            "/client/getSMSCDR",
+            "/client/sms-cdr-data",
+            "/client/SMSCDRData",
+            "/client/cdr-data",
+            "/client/getCDRStats",
+        ]
+        from datetime import date
+        today = date.today().strftime("%Y-%m-%d")
+        params = {
+            "draw": 1, "start": 0, "length": 100,
+            "date_from": f"{today} 00:00:00",
+            "date_to":   f"{today} 23:59:59",
+        }
+        for ep in endpoints:
+            try:
+                r = session.get(f"{BASE_URL}{ep}", params=params, timeout=10)
+                if r.status_code == 200:
+                    data = r.json()
+                    if "data" in data or "aaData" in data:
+                        rows = data.get("data", data.get("aaData", []))
+                        print(f"✅ Found data at: {ep} ({len(rows)} rows)")
+                        break
+            except:
+                pass
+
+    if not rows:
+        print("❌ No data found. Printing page JS for debug:")
+        # JS snippet দেখাও
+        for line in page_text.split("\n"):
+            if "ajax" in line.lower() or "datatable" in line.lower():
+                print(f"  JS: {line.strip()[:150]}")
         return
 
-    # Step 5: New messages only
+    if rows:
+        print(f"Sample row: {rows[0]}")
+
+    # Step 4: New messages only
     seen = load_seen()
     new_rows = []
     for row in rows:
-        row_id = "|".join(row[:5])
+        if isinstance(row, list):
+            row_id = "|".join(str(c) for c in row[:5])
+        elif isinstance(row, dict):
+            row_id = str(row)
+            row = list(row.values())
+        else:
+            continue
         if row_id not in seen:
             new_rows.append((row_id, row))
 
-    print(f"New: {len(new_rows)}")
+    print(f"New messages: {len(new_rows)}")
 
-    # Step 6: Telegram alert
+    # Step 5: Telegram
     for row_id, row in new_rows:
         send_telegram(build_message(row))
         seen.add(row_id)
