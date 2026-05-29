@@ -5,7 +5,7 @@ import re
 from bs4 import BeautifulSoup
 from datetime import datetime, date
 
-# ── Config ───────────────────────────────────────────────────────────────────
+# Config
 BASE_URL     = os.environ["LAMIX_URL"]
 USERNAME     = os.environ["LAMIX_USERNAME"]
 PASSWORD     = os.environ["LAMIX_PASSWORD"]
@@ -14,7 +14,6 @@ TG_CHAT_ID   = os.environ["TELEGRAM_CHAT_ID"]
 SEEN_FILE    = "seen_ids.json"
 DEVELOPER    = "https://t.me/Napa_Ex"
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
 def load_seen():
     if os.path.exists(SEEN_FILE):
         with open(SEEN_FILE) as f:
@@ -60,13 +59,12 @@ def build_message(row):
     sms_text = " ".join(str(x) for x in row[4:]) if len(row) > 4 else "N/A"
     return f"📱💥 <b>NEW SMS ALERT</b> 💥📱\n\n📍 Range » {range_}\n🔖 CLI » {cli}\n📞 Number » {number}\n\n💬 {sms_text}\n\n⏰ {format_time(date_str)}"
 
-# ── Main ─────────────────────────────────────────────────────────────────────
+# Main
 def main():
     session = requests.Session()
-    session.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"})
+    session.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
 
     # Login
-    print("🔑 Logging in...")
     resp = session.get(f"{BASE_URL}/login", timeout=15)
     soup = BeautifulSoup(resp.text, "html.parser")
     captcha = solve_captcha(soup)
@@ -81,9 +79,9 @@ def main():
         return
     print("✅ Login OK!")
 
-    # Scrape HTML
+    # Scrape
     sms_url = f"{BASE_URL}/client/SMSCDRStats"
-    print(f"📄 Scraping HTML page: {sms_url}")
+    print(f"📄 Scraping: {sms_url}")
     resp = session.get(sms_url, timeout=20)
 
     soup = BeautifulSoup(resp.text, "html.parser")
@@ -91,29 +89,23 @@ def main():
 
     rows = []
     if table:
-        print(f"✅ Table found - ID: {table.get('id')}")
-
+        print("✅ Table found!")
         for tr in table.find_all("tr"):
             tds = tr.find_all("td")
             if len(tds) >= 5:
                 row_data = [td.get_text(strip=True) for td in tds]
-                print(f"Row found: {row_data[:5]}...")   # সব রো দেখাবে (ডিবাগ)
-                
-                # আরও নমনীয় ফিল্টার
-                first_cell = row_data[0].strip()
-                if re.search(r'\d{4}-\d{2}-\d{2}', first_cell) or len(first_cell) > 15:
-                    rows.append(row_data)
+                print(f"RAW ROW: {row_data}")   # ← সব রো দেখাবে
+                rows.append(row_data)
 
-    print(f"\nTotal valid SMS rows extracted: {len(rows)}")
+    print(f"\nTotal rows found with 5+ cells: {len(rows)}")
 
-    # New messages only
+    # Process new messages
     seen = load_seen()
     new_rows = []
     for row in rows:
         row_id = "|".join(str(c) for c in row[:5])
         if row_id not in seen:
             new_rows.append((row_id, row))
-            print(f"🆕 New SMS detected: {row[:3]}")
 
     print(f"New messages to notify: {len(new_rows)}")
 
