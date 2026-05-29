@@ -25,6 +25,13 @@ def save_seen(ids):
     with open(SEEN_FILE, "w") as f:
         json.dump(list(ids), f)
 
+def push_seen():
+    os.system('git config user.email "action@github.com"')
+    os.system('git config user.name "GitHub Action"')
+    os.system(f'git add {SEEN_FILE}')
+    os.system('git commit -m "chore: update seen_ids" || true')
+    os.system('git push || true')
+
 def send_telegram(text):
     url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
     payload = {
@@ -58,10 +65,8 @@ def build_message(row):
     number   = str(row[2]) if len(row) > 2 else "N/A"
     cli      = str(row[3]) if len(row) > 3 else "N/A"
     sms_text = " ".join(str(x) for x in row[4:]) if len(row) > 4 else "N/A"
-    
-    # ডলার সাইন সরানো + ক্লিন টেক্সট
     sms_text = sms_text.replace("$", "").strip()
-    
+
     return (
         f"📱 <b>NEW SMS RECEIVED</b> 📱\n\n"
         f"📍 Range: {range_}\n"
@@ -126,9 +131,10 @@ def main():
         print(f"AJAX Error: {r.status_code}")
         return
 
-    # New messages only
+    # নতুন মেসেজ চেক করো
     seen = load_seen()
     new_rows = []
+
     for row in rows:
         if isinstance(row, dict):
             row = list(row.values())
@@ -142,7 +148,9 @@ def main():
         send_telegram(build_message(row))
         seen.add(row_id)
 
+    # সেভ করো এবং রিপোতে push করো
     save_seen(seen)
+    push_seen()
     print("✅ Done!")
 
 if __name__ == "__main__":
