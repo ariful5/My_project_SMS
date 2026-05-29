@@ -5,8 +5,8 @@ import re
 from bs4 import BeautifulSoup
 from datetime import datetime
 
-# ── Config from GitHub Secrets ───────────────────────────────────────────────
-BASE_URL     = os.environ["LAMIX_URL"]       # http://51.210.208.26/ints
+# ── Config ───────────────────────────────────────────────────────────────────
+BASE_URL     = os.environ["LAMIX_URL"]
 USERNAME     = os.environ["LAMIX_USERNAME"]
 PASSWORD     = os.environ["LAMIX_PASSWORD"]
 TG_TOKEN     = os.environ["TELEGRAM_TOKEN"]
@@ -34,31 +34,29 @@ def send_telegram(text):
         "parse_mode": "HTML",
         "reply_markup": {
             "inline_keyboard": [[
-                {
-                    "text": "👨‍💻 Developer",
-                    "url": DEVELOPER
-                }
+                {"text": "👨‍💻 Developer", "url": DEVELOPER}
             ]]
         }
     }
     r = requests.post(url, json=payload, timeout=10)
     print("Telegram:", r.status_code)
 
-def solve_captcha(html_text):
-    """Solve simple math captcha like 'What is 6 + 7 = ?'"""
-    match = re.search(r'(\d+)\s*\+\s*(\d+)', html_text)
+def solve_captcha(soup):
+    full_text = soup.get_text(" ", strip=True)
+    match = re.search(r'(\d+)\s*\+\s*(\d+)', full_text)
     if match:
-        return str(int(match.group(1)) + int(match.group(2)))
-    match = re.search(r'(\d+)\s*-\s*(\d+)', html_text)
+        ans = int(match.group(1)) + int(match.group(2))
+        print(f"Captcha: {match.group(1)} + {match.group(2)} = {ans}")
+        return str(ans)
+    match = re.search(r'(\d+)\s*-\s*(\d+)', full_text)
     if match:
-        return str(int(match.group(1)) - int(match.group(2)))
-    match = re.search(r'(\d+)\s*\*\s*(\d+)', html_text)
-    if match:
-        return str(int(match.group(1)) * int(match.group(2)))
+        ans = int(match.group(1)) - int(match.group(2))
+        print(f"Captcha: {match.group(1)} - {match.group(2)} = {ans}")
+        return str(ans)
+    print("Captcha not found, using 0")
     return "0"
 
 def format_time(date_str):
-    """2026-05-29 01:22:05  →  01:22 AM | 29.05.26"""
     try:
         dt = datetime.strptime(date_str.strip(), "%Y-%m-%d %H:%M:%S")
         return dt.strftime("%I:%M %p | %d.%m.%y")
@@ -66,15 +64,12 @@ def format_time(date_str):
         return date_str
 
 def build_message(row):
-    # row = [date, range, number, cli, sms]
     date_str = row[0] if len(row) > 0 else "N/A"
     range_   = row[1] if len(row) > 1 else "N/A"
     number   = row[2] if len(row) > 2 else "N/A"
     cli      = row[3] if len(row) > 3 else "N/A"
     sms_text = row[4] if len(row) > 4 else "N/A"
-
     time_fmt = format_time(date_str)
-
     return (
         f"📱💥 <b>NEW SMS ALERT</b> 💥📱\n\n"
         f"📱 SMS Received\n"
@@ -93,34 +88,38 @@ def main():
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
     })
 
-    # Step 1: Load login page & solve captcha
+    # Step 1: Login page
     login_url = f"{BASE_URL}/login"
     resp = session.get(login_url, timeout=15)
-    captcha_answer = solve_captcha(resp.text)
-    print(f"Captcha answer: {captcha_answer}")
-
-    # Get CSRF token if exists
     soup = BeautifulSoup(resp.text, "html.parser")
+
+    # CSRF token
     csrf = ""
     token_input = soup.find("input", {"name": "_token"})
     if token_input:
         csrf = token_input.get("value", "")
 
-    # Step 2: Login
+    # Captcha
+    captcha_answer = solve_captcha(soup)
+
+    # Step 2: Login — field নাম: username, password, answer
     login_data = {
         "_token":   csrf,
         "username": USERNAME,
         "password": PASSWORD,
-        "captcha":  captcha_answer,
+        "answer":   captcha_answer,   # ✅ "Answer" placeholder = "answer" field
     }
-    resp = session.post(login_url, data=login_data, timeout=15, allow_redirects=True)
-    print(f"After login URL: {resp.url}")
 
-    if "login" in resp.url:
+    resp = session.post(login_url, data=login_data, timeout=15, allow_redirects=True)
+    print(f"Login URL: {resp.url}")
+
+    if "login" in resp.url.lower():
         print("❌ Login failed!")
         return
 
-    # Step 3: Go to SMS CDR Stats page
+    print("✅ Login OK!")
+
+    # Step 3: SMS CDR Stats
     cdr_url = f"{BASE_URL}/client/SMSCDRStats"
     resp = session.get(cdr_url, timeout=15)
     soup = BeautifulSoup(resp.text, "html.parser")
@@ -133,7 +132,7 @@ def main():
 
     tbody = table.find("tbody")
     if not tbody:
-        print("❌ No tbody found")
+        print("❌ No tbody")
         return
 
     rows = []
@@ -142,30 +141,27 @@ def main():
         if cells:
             rows.append(cells)
 
-    print(f"Total rows found: {len(rows)}")
+    print(f"Total rows: {len(rows)}")
 
     if not rows:
-        print("No SMS records.")
+        print("No SMS.")
         return
 
-    # Step 5: Find new messages
+    # Step 5: New messages only
     seen = load_seen()
     new_rows = []
-
     for row in rows:
         row_id = "|".join(row[:5])
         if row_id not in seen:
             new_rows.append((row_id, row))
 
-    print(f"New messages: {len(new_rows)}")
+    print(f"New: {len(new_rows)}")
 
-    # Step 6: Send Telegram alerts
+    # Step 6: Telegram alert
     for row_id, row in new_rows:
-        msg = build_message(row)
-        send_telegram(msg)
+        send_telegram(build_message(row))
         seen.add(row_id)
 
-    # Step 7: Save seen IDs
     save_seen(seen)
     print("✅ Done!")
 
