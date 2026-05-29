@@ -83,7 +83,7 @@ def main():
         return
     print("✅ Login OK!")
 
-    # AJAX with maximum realistic headers
+    # AJAX with very aggressive headers
     today = date.today().strftime("%Y-%m-%d")
     ajax_url = f"{BASE_URL}/client/res/data_smscdr.php"
 
@@ -100,13 +100,14 @@ def main():
         "Origin": BASE_URL,
         "Accept": "application/json, text/javascript, */*; q=0.01",
         "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate",
+        "Accept-Encoding": "gzip, deflate, br",
         "Connection": "keep-alive",
         "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
     })
 
-    print("🔄 Trying AJAX with full headers...")
-    r = session.get(ajax_url, params=params, timeout=20)
+    print("🔄 Trying AJAX with maximum headers...")
+    r = session.get(ajax_url, params=params, timeout=25)
 
     print(f"AJAX status: {r.status_code}")
 
@@ -114,16 +115,16 @@ def main():
         try:
             data = r.json()
             rows = data.get("aaData") or data.get("data") or []
-            print(f"✅ AJAX Success! Total rows: {len(rows)}")
+            print(f"✅ AJAX Success! Rows found: {len(rows)}")
         except:
-            print("JSON parse failed")
+            print("JSON parse error")
             rows = []
     else:
-        print("❌ AJAX still failing. Full response:")
-        print(r.text[:1000])
+        print("❌ AJAX Failed. Response:")
+        print(r.text[:800] if r.text else "Empty response")
         rows = []
 
-    # Process rows
+    # Process new messages
     seen = load_seen()
     new_rows = []
     for row in rows:
