@@ -108,7 +108,8 @@ def main():
         "frange": "", "fnum": "", "fcli": "",
         "fgdate": "", "fgmonth": "", "fgrange": "", "fgnumber": "", "fgcli": "",
         "fg": "0", "sEcho": "1", "iColumns": "7", "sColumns": ",,,,,,",
-        "iDisplayStart": "0", "iDisplayLength": "25",
+        "iDisplayStart": "0",
+        "iDisplayLength": "100",  # ← 25 থেকে 100 করুন
         "mDataProp_0": "0", "mDataProp_1": "1", "mDataProp_2": "2",
         "mDataProp_3": "3", "mDataProp_4": "4", "mDataProp_5": "5", "mDataProp_6": "6",
         "sSearch": "", "bRegex": "false", "iSortCol_0": "0", "sSortDir_0": "desc",
