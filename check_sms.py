@@ -53,7 +53,7 @@ def solve_captcha(soup):
         ans = int(match.group(1)) - int(match.group(2))
         print(f"Captcha: {match.group(1)} - {match.group(2)} = {ans}")
         return str(ans)
-    print("Captcha not found, using 0")
+    print("Captcha not found!")
     return "0"
 
 def format_time(date_str):
@@ -89,31 +89,24 @@ def main():
     })
 
     # Step 1: Login page
-    login_url = f"{BASE_URL}/login"
+    login_url  = f"{BASE_URL}/login"
+    signin_url = f"{BASE_URL}/signin"   # ✅ form action = signin
+
     resp = session.get(login_url, timeout=15)
     soup = BeautifulSoup(resp.text, "html.parser")
-
-    # CSRF token
-    csrf = ""
-    token_input = soup.find("input", {"name": "_token"})
-    if token_input:
-        csrf = token_input.get("value", "")
-
-    # Captcha
     captcha_answer = solve_captcha(soup)
 
-    # Step 2: Login — field নাম: username, password, answer
+    # Step 2: POST to signin ✅
     login_data = {
-        "_token":   csrf,
         "username": USERNAME,
         "password": PASSWORD,
-        "answer":   captcha_answer,   # ✅ "Answer" placeholder = "answer" field
+        "capt":     captcha_answer,   # ✅ field name = capt
     }
 
-    resp = session.post(login_url, data=login_data, timeout=15, allow_redirects=True)
+    resp = session.post(signin_url, data=login_data, timeout=15, allow_redirects=True)
     print(f"Login URL: {resp.url}")
 
-    if "login" in resp.url.lower():
+    if "login" in resp.url.lower() or "signin" in resp.url.lower():
         print("❌ Login failed!")
         return
 
@@ -142,7 +135,6 @@ def main():
             rows.append(cells)
 
     print(f"Total rows: {len(rows)}")
-
     if not rows:
         print("No SMS.")
         return
