@@ -5,7 +5,7 @@ import re
 from bs4 import BeautifulSoup
 from datetime import datetime, date
 
-# Config
+# ── Config ───────────────────────────────────────────────────────────────────
 BASE_URL     = os.environ["LAMIX_URL"]
 USERNAME     = os.environ["LAMIX_USERNAME"]
 PASSWORD     = os.environ["LAMIX_PASSWORD"]
@@ -14,6 +14,7 @@ TG_CHAT_ID   = os.environ["TELEGRAM_CHAT_ID"]
 SEEN_FILE    = "seen_ids.json"
 DEVELOPER    = "https://t.me/Napa_Ex"
 
+# ── Helpers ──────────────────────────────────────────────────────────────────
 def load_seen():
     if os.path.exists(SEEN_FILE):
         with open(SEEN_FILE) as f:
@@ -44,19 +45,30 @@ def solve_captcha(soup):
         return str(ans)
     return "0"
 
+def format_time(date_str):
+    try:
+        dt = datetime.strptime(date_str.strip(), "%Y-%m-%d %H:%M:%S")
+        return dt.strftime("%I:%M %p | %d.%m.%y")
+    except:
+        return date_str
+
 def build_message(row):
     date_str = str(row[0]) if len(row) > 0 else "N/A"
     range_   = str(row[1]) if len(row) > 1 else "N/A"
     number   = str(row[2]) if len(row) > 2 else "N/A"
     cli      = str(row[3]) if len(row) > 3 else "N/A"
     sms_text = " ".join(str(x) for x in row[4:]) if len(row) > 4 else "N/A"
-    return f"📱💥 <b>NEW SMS ALERT</b> 💥📱\n\n📍 Range » {range_}\n🔖 CLI » {cli}\n📞 Number » {number}\n\n💬 {sms_text}\n\n⏰ {date_str}"
+    return f"📱💥 <b>NEW SMS ALERT</b> 💥📱\n\n📍 Range » {range_}\n🔖 CLI » {cli}\n📞 Number » {number}\n\n💬 {sms_text}\n\n⏰ {format_time(date_str)}"
 
+# ── Main ─────────────────────────────────────────────────────────────────────
 def main():
     session = requests.Session()
-    session.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"
+    })
 
     # Login
+    print("🔑 Logging in...")
     resp = session.get(f"{BASE_URL}/login", timeout=15)
     soup = BeautifulSoup(resp.text, "html.parser")
     captcha = solve_captcha(soup)
@@ -71,31 +83,63 @@ def main():
         return
     print("✅ Login OK!")
 
-    # Scrape
-    sms_url = f"{BASE_URL}/client/SMSCDRStats"
-    print(f"📄 Scraping: {sms_url}")
-    resp = session.get(sms_url, timeout=20)
+    # AJAX with maximum realistic headers
+    today = date.today().strftime("%Y-%m-%d")
+    ajax_url = f"{BASE_URL}/client/res/data_smscdr.php"
 
-    soup = BeautifulSoup(resp.text, "html.parser")
-    table = soup.find("table", id="dt") or soup.find("table", class_=re.compile("data-tbl-boxy"))
+    params = {
+        "fdate1": f"{today} 00:00:00",
+        "fdate2": f"{today} 23:59:59",
+        "frange": "", "fnum": "", "fcli": "",
+        "fgdate": "", "fgmonth": "", "fgrange": "", "fgnumber": "", "fgcli": ""
+    }
 
-    if table:
-        print("\n=== TABLE HTML START ===")
-        print(table.prettify()[:3000])   # প্রথম ৩০০০ ক্যারেক্টার প্রিন্ট করবে
-        print("=== TABLE HTML END ===\n")
+    session.headers.update({
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": f"{BASE_URL}/client/SMSCDRStats",
+        "Origin": BASE_URL,
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate",
+        "Connection": "keep-alive",
+        "Cache-Control": "no-cache",
+    })
 
-        rows = []
-        for tr in table.find_all("tr"):
-            tds = tr.find_all("td")
-            if len(tds) >= 4:
-                row_data = [td.get_text(strip=True) for td in tds]
-                print(f"ROW: {row_data}")
-                rows.append(row_data)
+    print("🔄 Trying AJAX with full headers...")
+    r = session.get(ajax_url, params=params, timeout=20)
 
-        print(f"\nTotal rows with 4+ cells: {len(rows)}")
+    print(f"AJAX status: {r.status_code}")
+
+    if r.status_code == 200:
+        try:
+            data = r.json()
+            rows = data.get("aaData") or data.get("data") or []
+            print(f"✅ AJAX Success! Total rows: {len(rows)}")
+        except:
+            print("JSON parse failed")
+            rows = []
     else:
-        print("No table found")
+        print("❌ AJAX still failing. Full response:")
+        print(r.text[:1000])
+        rows = []
 
+    # Process rows
+    seen = load_seen()
+    new_rows = []
+    for row in rows:
+        if isinstance(row, dict):
+            row = list(row.values())
+        row_id = "|".join(str(c) for c in row[:5])
+        if row_id not in seen:
+            new_rows.append((row_id, row))
+
+    print(f"New messages to notify: {len(new_rows)}")
+
+    for row_id, row in new_rows:
+        send_telegram(build_message(row))
+        seen.add(row_id)
+
+    save_seen(seen)
     print("✅ Done!")
 
 if __name__ == "__main__":
