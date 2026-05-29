@@ -3,7 +3,7 @@ import json
 import os
 import re
 from bs4 import BeautifulSoup
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 # ── Config ───────────────────────────────────────────────────────────────────
 BASE_URL     = os.environ["LAMIX_URL"]
@@ -52,10 +52,14 @@ def solve_captcha(soup):
         return str(ans)
     return "0"
 
+def from datetime import datetime, date, timezone, timedelta
+
 def format_time(date_str):
     try:
         dt = datetime.strptime(date_str.strip(), "%Y-%m-%d %H:%M:%S")
-        return dt.strftime("%I:%M %p | %d.%m.%y")
+        # Bangladesh Time = UTC+6
+        bd_time = dt + timedelta(hours=6)
+        return bd_time.strftime("%I:%M %p | %d.%m.%y")
     except:
         return date_str
 
@@ -68,12 +72,15 @@ def build_message(row):
     sms_text = sms_text.replace("$", "").strip()
 
     return (
-        f"📱 <b>NEW SMS RECEIVED</b> 📱\n\n"
-        f"📍 Range: {range_}\n"
-        f"🔖 CLI: {cli}\n"
-        f"📞 Number: {number}\n\n"
-        f"💬 {sms_text}\n\n"
-        f"⏰ {format_time(date_str)}"
+        f"🔔 নতুন SMS এসেছে!\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"📍 Range  : {range_}\n"
+        f"📞 Number : {number}\n"
+        f"🔖 CLI    : {cli}\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"💬 {sms_text}\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"🕐 {format_time(date_str)}"
     )
 
 # ── Main ─────────────────────────────────────────────────────────────────────
