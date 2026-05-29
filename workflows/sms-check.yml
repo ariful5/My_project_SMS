@@ -1,0 +1,38 @@
+name: Lamix SMS Notifier
+
+on:
+  workflow_dispatch:  # cron-job.org এই trigger ব্যবহার করবে
+
+jobs:
+  check-sms:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Restore seen IDs cache
+        uses: actions/cache@v4
+        with:
+          path: seen_ids.json
+          key: seen-ids-${{ github.run_id }}
+          restore-keys: |
+            seen-ids-
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4
+
+      - name: Run SMS checker
+        env:
+          LAMIX_URL:        ${{ secrets.LAMIX_URL }}
+          LAMIX_USERNAME:   ${{ secrets.LAMIX_USERNAME }}
+          LAMIX_PASSWORD:   ${{ secrets.LAMIX_PASSWORD }}
+          TELEGRAM_TOKEN:   ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python check_sms.py
+        
