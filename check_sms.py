@@ -15,15 +15,30 @@ SEEN_FILE    = "seen_ids.json"
 DEVELOPER    = "https://t.me/Napa_Ex"
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+def get_session_date():
+    bd_now = datetime.utcnow() + timedelta(hours=6)
+    session_date = (bd_now - timedelta(hours=6)).strftime("%Y-%m-%d")
+    return session_date
+
 def load_seen():
     if os.path.exists(SEEN_FILE):
         with open(SEEN_FILE) as f:
-            return set(json.load(f))
+            data = json.load(f)
+            saved_date = data.get("date", "")
+            if saved_date == get_session_date():
+                return set(data.get("ids", []))
+            else:
+                print("📅 নতুন দিন! seen_ids রিসেট হলো।")
+                return set()
     return set()
 
 def save_seen(ids):
+    data = {
+        "date": get_session_date(),
+        "ids": list(ids)
+    }
     with open(SEEN_FILE, "w") as f:
-        json.dump(list(ids), f)
+        json.dump(data, f)
 
 def push_seen():
     os.system('git config user.email "action@github.com"')
@@ -72,8 +87,8 @@ def build_message(row):
     return (
         f"🔔 নতুন SMS এসেছে!\n"
         f"━━━━━━━━━━━━━━━\n"
-        f"📍 Range  : {range_}\n"
         f"📞 Number : {number}\n"
+        f"📍 Range  : {range_}\n"
         f"🔖 CLI    : {cli}\n"
         f"━━━━━━━━━━━━━━━\n"
         f"💬 {sms_text}\n"
@@ -114,7 +129,7 @@ def main():
         "fgdate": "", "fgmonth": "", "fgrange": "", "fgnumber": "", "fgcli": "",
         "fg": "0", "sEcho": "1", "iColumns": "7", "sColumns": ",,,,,,",
         "iDisplayStart": "0",
-        "iDisplayLength": "100",  # ← 25 থেকে 100 করুন
+        "iDisplayLength": "2000",  
         "mDataProp_0": "0", "mDataProp_1": "1", "mDataProp_2": "2",
         "mDataProp_3": "3", "mDataProp_4": "4", "mDataProp_5": "5", "mDataProp_6": "6",
         "sSearch": "", "bRegex": "false", "iSortCol_0": "0", "sSortDir_0": "desc",
