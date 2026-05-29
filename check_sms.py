@@ -15,7 +15,6 @@ SEEN_FILE    = "seen_ids.json"
 DEVELOPER    = "https://t.me/Napa_Ex"
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
-
 def load_seen():
     if os.path.exists(SEEN_FILE):
         with open(SEEN_FILE) as f:
@@ -32,24 +31,17 @@ def send_telegram(text):
         "chat_id": TG_CHAT_ID,
         "text": text,
         "parse_mode": "HTML",
-        "reply_markup": {
-            "inline_keyboard": [[{"text": "👨‍💻 Developer", "url": DEVELOPER}]]
-        }
+        "reply_markup": {"inline_keyboard": [[{"text": "👨‍💻 Developer", "url": DEVELOPER}]]}
     }
-    r = requests.post(url, json=payload, timeout=10)
-    print("Telegram:", r.status_code)
+    requests.post(url, json=payload, timeout=10)
 
 def solve_captcha(soup):
-    full_text = soup.get_text(" ", strip=True)
-    match = re.search(r'(\d+)\s*\+\s*(\d+)', full_text)
+    text = soup.get_text(" ", strip=True)
+    match = re.search(r'(\d+)\s*([+\-])\s*(\d+)', text)
     if match:
-        ans = int(match.group(1)) + int(match.group(2))
-        print(f"Captcha: {match.group(1)} + {match.group(2)} = {ans}")
-        return str(ans)
-    match = re.search(r'(\d+)\s*-\s*(\d+)', full_text)
-    if match:
-        ans = int(match.group(1)) - int(match.group(2))
-        print(f"Captcha: {match.group(1)} - {match.group(2)} = {ans}")
+        a, op, b = int(match.group(1)), match.group(2), int(match.group(3))
+        ans = a + b if op == '+' else a - b
+        print(f"Captcha: {a} {op} {b} = {ans}")
         return str(ans)
     return "0"
 
@@ -66,38 +58,26 @@ def build_message(row):
     number   = str(row[2]) if len(row) > 2 else "N/A"
     cli      = str(row[3]) if len(row) > 3 else "N/A"
     sms_text = str(row[4]) if len(row) > 4 else "N/A"
-    time_fmt = format_time(date_str)
-    return (
-        f"📱💥 <b>NEW SMS ALERT</b> 💥📱\n\n"
-        f"📱 SMS Received\n"
-        f"📍 Range » {range_}\n"
-        f"🔖 CLI » {cli}\n"
-        f"📞 Number » {number}\n\n"
-        f"💬 {sms_text}\n\n"
-        f"⏰ {time_fmt}"
-    )
+    return f"📱💥 <b>NEW SMS ALERT</b> 💥📱\n\n📍 Range » {range_}\n🔖 CLI » {cli}\n📞 Number » {number}\n\n💬 {sms_text}\n\n⏰ {format_time(date_str)}"
 
 # ── Main ─────────────────────────────────────────────────────────────────────
-
 def main():
     session = requests.Session()
-    session.headers.update({
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-    })
+    session.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"})
 
     # ==================== LOGIN ====================
-    login_url  = f"{BASE_URL}/login"
+    login_url = f"{BASE_URL}/login"
     signin_url = f"{BASE_URL}/signin"
-
+    
     resp = session.get(login_url, timeout=15)
     soup = BeautifulSoup(resp.text, "html.parser")
-    captcha_answer = solve_captcha(soup)
+    captcha = solve_captcha(soup)
 
     session.headers.update({"Referer": login_url})
     resp = session.post(signin_url, data={
         "username": USERNAME,
         "password": PASSWORD,
-        "capt": captcha_answer,
+        "capt": captcha
     }, timeout=15, allow_redirects=True)
 
     print(f"Login URL: {resp.url}")
@@ -106,50 +86,46 @@ def main():
         return
     print("✅ Login OK!")
 
-    # ==================== SCRAPE DASHBOARD HTML ====================
+    # ==================== DASHBOARD ====================
     dashboard_url = f"{BASE_URL}/client/SMSDashboard"
-    print(f"📄 Fetching dashboard: {dashboard_url}")
-
+    print(f"Fetching dashboard: {dashboard_url}")
+    
     resp = session.get(dashboard_url, timeout=20)
     print(f"Dashboard status: {resp.status_code}")
 
     if resp.status_code != 200:
-        print("❌ Failed to load dashboard")
-        print(resp.text[:500])
+        print("Failed to load dashboard")
         return
 
     soup = BeautifulSoup(resp.text, "html.parser")
 
-    # Debug: পেজ টাইটেল ও কয়টা টেবিল আছে
-    print(f"Page Title: {soup.title.string if soup.title else 'No title'}")
+    # Find the main SMS table
     tables = soup.find_all("table")
     print(f"Total tables found: {len(tables)}")
 
-    # SMS টেবিল খুঁজে বের করা (সবচেয়ে বড় টেবিল বা DataTable)
     rows = []
-    for table in tables:
-        tbody = table.find("tbody")
-        if tbody:
-            trs = tbody.find_all("tr")
-            if len(trs) > 3:   # অনেকগুলো রো থাকলে এটাই SMS টেবিল
-                print(f"✅ Found promising table with {len(trs)} rows")
-                for tr in trs:
-                    tds = tr.find_all("td")
-                    if len(tds) >= 5:
-                        row_data = [td.get_text(strip=True) for td in tds]
-                        rows.append(row_data)
-                break  # প্রথম বড় টেবিল পেলেই নেব
+    for idx, table in enumerate(tables):
+        # Look for table that has "Date", "Range", "Number" etc.
+        header_text = table.get_text(" ", strip=True)[:200]
+        if any(word in header_text for word in ["Date", "Range", "Number", "CLI", "SMS"]):
+            print(f"✅ Promising table found at index {idx} (contains SMS keywords)")
 
-    print(f"Total SMS rows extracted: {len(rows)}")
-    if rows:
-        print(f"Sample row: {rows[0]}")
+            # Get all rows from tbody or whole table
+            for tr in table.find_all("tr"):
+                tds = tr.find_all("td")
+                if len(tds) >= 5:          # আমাদের দরকার কমপক্ষে ৫টা কলাম
+                    row_data = [td.get_text(strip=True) for td in tds]
+                    rows.append(row_data)
+                    if len(rows) <= 2:
+                        print(f"Sample row: {row_data}")
+
+    print(f"\nTotal SMS rows extracted: {len(rows)}")
 
     if not rows:
-        print("❌ No SMS rows found in HTML. Need more debug.")
-        print("First 800 chars of dashboard:", resp.text[:800])
+        print("❌ Still no rows extracted. More debug needed.")
         return
 
-    # ==================== NEW SMS ONLY ====================
+    # ==================== PROCESS NEW SMS ====================
     seen = load_seen()
     new_rows = []
     for row in rows:
