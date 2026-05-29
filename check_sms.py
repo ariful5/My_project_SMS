@@ -24,6 +24,10 @@ def load_seen():
     if os.path.exists(SEEN_FILE):
         with open(SEEN_FILE) as f:
             data = json.load(f)
+            # পুরনো format (list) হলে রিসেট করো
+            if isinstance(data, list):
+                print("📅 পুরনো format! seen_ids রিসেট হলো।")
+                return set()
             saved_date = data.get("date", "")
             if saved_date == get_session_date():
                 return set(data.get("ids", []))
