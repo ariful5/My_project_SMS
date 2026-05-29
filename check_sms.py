@@ -57,24 +57,31 @@ def build_message(row):
     range_   = str(row[1]) if len(row) > 1 else "N/A"
     number   = str(row[2]) if len(row) > 2 else "N/A"
     cli      = str(row[3]) if len(row) > 3 else "N/A"
-    sms_text = str(row[4]) if len(row) > 4 else "N/A"
-    return f"📱💥 <b>NEW SMS ALERT</b> 💥📱\n\n📍 Range » {range_}\n🔖 CLI » {cli}\n📞 Number » {number}\n\n💬 {sms_text}\n\n⏰ {format_time(date_str)}"
+    sms_text = " ".join(str(x) for x in row[4:]) if len(row) > 4 else "N/A"
+    
+    return (
+        f"📱💥 <b>NEW SMS ALERT</b> 💥📱\n\n"
+        f"📍 Range » {range_}\n"
+        f"🔖 CLI » {cli}\n"
+        f"📞 Number » {number}\n\n"
+        f"💬 {sms_text}\n\n"
+        f"⏰ {format_time(date_str)}"
+    )
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 def main():
     session = requests.Session()
-    session.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"})
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    })
 
-    # ==================== LOGIN ====================
-    login_url = f"{BASE_URL}/login"
-    signin_url = f"{BASE_URL}/signin"
-    
-    resp = session.get(login_url, timeout=15)
+    # Login
+    print("🔑 Logging in...")
+    resp = session.get(f"{BASE_URL}/login", timeout=15)
     soup = BeautifulSoup(resp.text, "html.parser")
     captcha = solve_captcha(soup)
 
-    session.headers.update({"Referer": login_url})
-    resp = session.post(signin_url, data={
+    resp = session.post(f"{BASE_URL}/signin", data={
         "username": USERNAME,
         "password": PASSWORD,
         "capt": captcha
@@ -86,46 +93,40 @@ def main():
         return
     print("✅ Login OK!")
 
-    # ==================== DASHBOARD ====================
-    dashboard_url = f"{BASE_URL}/client/SMSDashboard"
-    print(f"Fetching dashboard: {dashboard_url}")
-    
-    resp = session.get(dashboard_url, timeout=20)
-    print(f"Dashboard status: {resp.status_code}")
+    # === সঠিক SMS পেজ ===
+    sms_url = f"{BASE_URL}/client/SMSCDRStats"
+    print(f"📄 Fetching SMS page: {sms_url}")
+
+    resp = session.get(sms_url, timeout=20)
+    print(f"Page status: {resp.status_code}")
 
     if resp.status_code != 200:
-        print("Failed to load dashboard")
+        print("❌ Could not load SMS page")
         return
 
     soup = BeautifulSoup(resp.text, "html.parser")
 
-    # Find the main SMS table
+    # টেবিল খুঁজে বের করা
     tables = soup.find_all("table")
     print(f"Total tables found: {len(tables)}")
 
     rows = []
-    for idx, table in enumerate(tables):
-        # Look for table that has "Date", "Range", "Number" etc.
-        header_text = table.get_text(" ", strip=True)[:200]
-        if any(word in header_text for word in ["Date", "Range", "Number", "CLI", "SMS"]):
-            print(f"✅ Promising table found at index {idx} (contains SMS keywords)")
-
-            # Get all rows from tbody or whole table
-            for tr in table.find_all("tr"):
-                tds = tr.find_all("td")
-                if len(tds) >= 5:          # আমাদের দরকার কমপক্ষে ৫টা কলাম
-                    row_data = [td.get_text(strip=True) for td in tds]
-                    rows.append(row_data)
-                    if len(rows) <= 2:
-                        print(f"Sample row: {row_data}")
+    for table in tables:
+        for tr in table.find_all("tr"):
+            tds = tr.find_all("td")
+            if len(tds) >= 5:                    # Date, Range, Number, CLI, SMS
+                row_data = [td.get_text(strip=True) for td in tds]
+                rows.append(row_data)
+                if len(rows) <= 3:
+                    print(f"Sample row: {row_data[:6]}...")
 
     print(f"\nTotal SMS rows extracted: {len(rows)}")
 
     if not rows:
-        print("❌ Still no rows extracted. More debug needed.")
+        print("❌ No SMS rows found in table.")
         return
 
-    # ==================== PROCESS NEW SMS ====================
+    # নতুন SMS শুধু
     seen = load_seen()
     new_rows = []
     for row in rows:
@@ -133,14 +134,14 @@ def main():
         if row_id not in seen:
             new_rows.append((row_id, row))
 
-    print(f"New messages: {len(new_rows)}")
+    print(f"New messages found: {len(new_rows)}")
 
     for row_id, row in new_rows:
         send_telegram(build_message(row))
         seen.add(row_id)
 
     save_seen(seen)
-    print("✅ Done!")
+    print("✅ Done! Script completed successfully.")
 
 if __name__ == "__main__":
     main()
