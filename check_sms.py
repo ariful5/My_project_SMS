@@ -177,10 +177,13 @@ def main():
 
     for row_id, row in new_rows:
         number = str(row[2]).strip()
+        # এই row টা rows এ কোন position এ আছে খুঁজো
+        current_idx = next(i for i, r in enumerate(rows)
+            if "|".join(str(c) for c in (list(r.values()) if isinstance(r, dict) else r)[:5]) == row_id)
+        # ওই position থেকে শেষ পর্যন্ত count করো (পুরনো থেকে এটা পর্যন্ত)
         total_today = sum(
-            1 for r in rows
-            if (list(r.values()) if isinstance(r, dict) else r)[2] and
-               str((list(r.values()) if isinstance(r, dict) else r)[2]).strip() == number
+            1 for r in rows[current_idx:]
+            if str((list(r.values()) if isinstance(r, dict) else r)[2]).strip() == number
         )
         send_telegram(build_message(row, total_today))
         seen.add(row_id)
