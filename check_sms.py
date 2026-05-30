@@ -80,12 +80,12 @@ def format_time(date_str):
     except:
         return date_str
 
-def build_message(row):
+def build_message(row, total_today):
     date_str = str(row[0]) if len(row) > 0 else "N/A"
     range_   = str(row[1]) if len(row) > 1 else "N/A"
     number   = str(row[2]) if len(row) > 2 else "N/A"
     cli      = str(row[3]) if len(row) > 3 else "N/A"
-    sms_text = str(row[4]) if len(row) > 4 else "N/A"  # ← শুধু row[4]
+    sms_text = str(row[4]) if len(row) > 4 else "N/A"
     sms_text = sms_text.replace("$", "").strip()
 
     return (
@@ -94,6 +94,7 @@ def build_message(row):
         f"📞 Number : {number}\n"
         f"📍 Range  : {range_}\n"
         f"🔖 CLI    : {cli}\n"
+        f"📊 Today  : {total_today} SMS\n"
         f"━━━━━━━━━━━━━━━\n"
         f"💬 {sms_text}\n"
         f"━━━━━━━━━━━━━━━\n"
@@ -175,7 +176,13 @@ def main():
     print(f"New messages to notify: {len(new_rows)}")
 
     for row_id, row in new_rows:
-        send_telegram(build_message(row))
+        number = str(row[2]).strip()
+        total_today = sum(
+            1 for r in rows
+            if (list(r.values()) if isinstance(r, dict) else r)[2] and
+               str((list(r.values()) if isinstance(r, dict) else r)[2]).strip() == number
+        )
+        send_telegram(build_message(row, total_today))
         seen.add(row_id)
 
     # সেভ করো এবং রিপোতে push করো
