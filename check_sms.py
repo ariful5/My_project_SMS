@@ -177,22 +177,12 @@ def main():
 
     for row_id, row in new_rows:
         number = str(row[2]).strip()
-        
-        # এই নাম্বারের সব SMS আজকের (rows এ আছে সব)
-        number_rows = [
-            r for r in rows
-            if str((list(r.values()) if isinstance(r, dict) else r)[2]).strip() == number
-        ]
-        total_today = len(number_rows)
-        
-        # এই row টা কোন position এ (desc order তাই উল্টো গুনবো)
-        current_pos = next(i for i, r in enumerate(number_rows)
-            if "|".join(str(c) for c in (list(r.values()) if isinstance(r, dict) else r)[:5]) == row_id)
-        
-        # oldest = 1, newest = total
-        sequential = total_today - current_pos
-        
-        send_telegram(build_message(row, sequential))
+        total_today = sum(
+            1 for r in rows
+            if (list(r.values()) if isinstance(r, dict) else r)[2] and
+               str((list(r.values()) if isinstance(r, dict) else r)[2]).strip() == number
+        )
+        send_telegram(build_message(row, total_today))
         seen.add(row_id)
 
     # সেভ করো এবং রিপোতে push করো
