@@ -143,6 +143,7 @@ def save_seen(ids):
 def push_seen():
     os.system('git config user.email "action@github.com"')
     os.system('git config user.name "GitHub Action"')
+    os.system('git pull --rebase || true')
     os.system(f'git add {SEEN_FILE}')
     os.system('git commit -m "chore: update seen_ids" || true')
     os.system('git push || true')
