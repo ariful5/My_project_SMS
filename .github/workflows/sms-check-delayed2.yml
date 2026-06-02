@@ -1,0 +1,35 @@
+name: Check SMS Delayed 2
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4
+
+      - name: Wait 40 seconds
+        run: sleep 40
+
+      - name: Run script
+        env:
+          LAMIX_URL: ${{ secrets.LAMIX_URL }}
+          LAMIX_USERNAME: ${{ secrets.LAMIX_USERNAME }}
+          LAMIX_PASSWORD: ${{ secrets.LAMIX_PASSWORD }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python check_sms.py
