@@ -25,6 +25,9 @@ jobs:
       - name: Wait 30 seconds
         run: sleep 30
 
+      - name: Pull latest seen_ids  # ← এটা নতুন যোগ করো
+        run: git pull origin main
+
       - name: Run script
         env:
           LAMIX_URL: ${{ secrets.LAMIX_URL }}
