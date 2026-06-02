@@ -145,8 +145,7 @@ def push_seen():
     os.system('git config user.name "GitHub Action"')
     os.system(f'git add {SEEN_FILE}')
     os.system('git commit -m "chore: update seen_ids" || true')
-    os.system('git pull --rebase || true')
-    os.system('git push || true')
+    os.system('git push --force || true')
 
 def send_telegram(text):
     url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
