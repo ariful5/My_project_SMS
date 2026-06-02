@@ -22,8 +22,8 @@ jobs:
       - name: Install dependencies
         run: pip install requests beautifulsoup4
 
-      - name: Wait 20 seconds
-        run: sleep 20
+      - name: Wait 30 seconds
+        run: sleep 30
 
       - name: Run script
         env:
