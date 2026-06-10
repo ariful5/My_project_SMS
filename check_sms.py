@@ -16,7 +16,7 @@ SEEN_FILE    = "seen_ids.json"
 DEVELOPER    = "https://t.me/Napa_Ex"
 
 RUN_DURATION = 60 * 60        # ১ ঘন্টা
-CHECK_INTERVAL = 5             # ৫ সেকেন্ড পর পর
+CHECK_INTERVAL = 1             # kop 😁 
 
 # ── Country Price List ───────────────────────────────────────────────────────
 COUNTRY_PRICES = {
