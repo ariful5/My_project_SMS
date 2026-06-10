@@ -1,14 +1,15 @@
 import os
 import requests
 import time
+from datetime import datetime, timezone
 
 TG_TOKEN    = os.environ["TELEGRAM_TOKEN"]
 TG_CHAT_ID  = os.environ["TELEGRAM_CHAT_ID"]
 GH_TOKEN    = os.environ["GH_PAT_TOKEN"]
 GH_REPO     = os.environ["GH_REPO"]
-GH_WORKFLOW = "sms-check.yml"
+GH_WORKFLOW = "check_sms.yml"
 
-RUN_DURATION = 4 * 60 * 60  # ৪ ঘন্টা
+RUN_DURATION = 4 * 60 * 60
 OFFSET = 0
 
 def get_updates(offset):
@@ -34,9 +35,40 @@ def trigger_workflow():
     }
     try:
         r = requests.post(url, json={"ref": "main"}, headers=headers, timeout=15)
+        print(f"Status: {r.status_code}")
+        print(f"Response: {r.text}")
         return r.status_code == 204
-    except:
+    except Exception as e:
+        print(f"Error: {e}")
         return False
+
+def get_sms_status():
+    url = f"https://api.github.com/repos/{GH_REPO}/actions/workflows/{GH_WORKFLOW}/runs"
+    headers = {
+        "Authorization": f"Bearer {GH_TOKEN}",
+        "Accept": "application/vnd.github+json"
+    }
+    try:
+        r = requests.get(url, headers=headers, timeout=10)
+        runs = r.json().get("workflow_runs", [])
+        if not runs:
+            return "কোনো run পাওয়া যায়নি"
+        latest = runs[0]
+        status     = latest.get("status", "unknown")
+        conclusion = latest.get("conclusion", "")
+        created_at = latest.get("created_at", "")
+        if status == "in_progress" and created_at:
+            started = datetime.strptime(created_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+            now_utc = datetime.now(timezone.utc)
+            running_sec = int((now_utc - started).total_seconds())
+            sms_remaining = max(0, 3600 - running_sec)
+            return f"🟢 চলছে | বাকি: {sms_remaining//60}m {sms_remaining%60}s"
+        elif status == "completed":
+            return f"⚪ শেষ হয়েছে ({conclusion})"
+        else:
+            return f"🟡 {status}"
+    except Exception as e:
+        return f"জানা যায়নি ({e})"
 
 def main():
     global OFFSET
@@ -47,7 +79,6 @@ def main():
     while True:
         elapsed = time.time() - start_time
 
-        # ৪ ঘন্টা শেষ → cleanly exit
         if elapsed >= RUN_DURATION:
             send_message("⏰ Bot ৪ ঘন্টা সম্পন্ন করেছে। বন্ধ হচ্ছে।")
             print("✅ ৪ ঘন্টা শেষ। Job Successful।")
@@ -71,47 +102,16 @@ def main():
                     send_message("❌ Workflow trigger হয়নি। Token চেক করুন।")
 
             elif text == "/status":
-    remaining_bot = int(RUN_DURATION - elapsed)
-    
-    # GitHub থেকে check_sms workflow এর status নিন
-    url = f"https://api.github.com/repos/{GH_REPO}/actions/workflows/{GH_WORKFLOW}/runs"
-    headers = {
-        "Authorization": f"Bearer {GH_TOKEN}",
-        "Accept": "application/vnd.github+json"
-    }
-    try:
-        r = requests.get(url, headers=headers, timeout=10)
-        runs = r.json().get("workflow_runs", [])
-        if runs:
-            latest = runs[0]
-            status     = latest.get("status", "unknown")
-            conclusion = latest.get("conclusion", "")
-            created_at = latest.get("created_at", "")
+                remaining_bot = int(RUN_DURATION - elapsed)
+                sms_info = get_sms_status()
+                send_message(
+                    f"📊 Status\n"
+                    f"━━━━━━━━━━━━━━━\n"
+                    f"🤖 Bot বাকি: {remaining_bot//3600}h {(remaining_bot%3600)//60}m\n"
+                    f"━━━━━━━━━━━━━━━\n"
+                    f"📩 SMS চেকার: {sms_info}"
+                )
 
-            # কতক্ষণ চলছে হিসাব করি
-            if status == "in_progress" and created_at:
-                from datetime import timezone
-                started = datetime.strptime(created_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-                now_utc = datetime.now(timezone.utc)
-                running_sec = int((now_utc - started).total_seconds())
-                sms_remaining = max(0, 3600 - running_sec)
-                sms_info = f"🟢 চলছে | বাকি: {sms_remaining//60}m {sms_remaining%60}s"
-            elif status == "completed":
-                sms_info = f"⚪ শেষ হয়েছে ({conclusion})"
-            else:
-                sms_info = f"🟡 {status}"
-        else:
-            sms_info = "কোনো run পাওয়া যায়নি"
-    except Exception as e:
-        sms_info = f"জানা যায়নি ({e})"
-
-    send_message(
-        f"📊 Status\n"
-        f"━━━━━━━━━━━━━━━\n"
-        f"🤖 Bot বাকি: {remaining_bot//3600}h {(remaining_bot%3600)//60}m\n"
-        f"━━━━━━━━━━━━━━━\n"
-        f"📩 SMS চেকার: {sms_info}"
-    )
         time.sleep(2)
 
 if __name__ == "__main__":
