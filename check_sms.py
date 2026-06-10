@@ -2,6 +2,7 @@ import requests
 import json
 import os
 import re
+import time
 from bs4 import BeautifulSoup
 from datetime import datetime, date, timedelta
 
@@ -14,7 +15,10 @@ TG_CHAT_ID   = os.environ["TELEGRAM_CHAT_ID"]
 SEEN_FILE    = "seen_ids.json"
 DEVELOPER    = "https://t.me/Napa_Ex"
 
-# ── Country Price List (USD) ─────────────────────────────────────────────────
+RUN_DURATION = 60 * 60        # ১ ঘন্টা
+CHECK_INTERVAL = 5             # ৫ সেকেন্ড পর পর
+
+# ── Country Price List ───────────────────────────────────────────────────────
 COUNTRY_PRICES = {
     "afghanistan": 0.0078, "algeria": 0.0108, "angola": 0.009, "argentina": 0.0078,
     "armenia": 0.0078, "karabakh": 0.0078, "azerbaijan": 0.006, "belarus": 0.006,
@@ -65,14 +69,9 @@ def load_seen():
         with open(SEEN_FILE) as f:
             data = json.load(f)
             if isinstance(data, list):
-                print("📅 পুরনো format! seen_ids রিসেট হলো।")
                 return set()
-            saved_date = data.get("date", "")
-            if saved_date == get_session_date():
+            if data.get("date", "") == get_session_date():
                 return set(data.get("ids", []))
-            else:
-                print("📅 নতুন দিন! seen_ids রিসেট হলো।")
-                return set()
     return set()
 
 def save_seen(ids):
@@ -95,7 +94,10 @@ def send_telegram(text):
         "parse_mode": "HTML",
         "reply_markup": {"inline_keyboard": [[{"text": "👨‍💻 Developer", "url": DEVELOPER}]]}
     }
-    requests.post(url, json=payload, timeout=10)
+    try:
+        requests.post(url, json=payload, timeout=10)
+    except Exception as e:
+        print(f"Telegram error: {e}")
 
 def solve_captcha(soup):
     text = soup.get_text(" ", strip=True)
@@ -103,7 +105,6 @@ def solve_captcha(soup):
     if match:
         a, op, b = int(match.group(1)), match.group(2), int(match.group(3))
         ans = a + b if op == '+' else a - b
-        print(f"Captcha: {a} {op} {b} = {ans}")
         return str(ans)
     return "0"
 
@@ -115,7 +116,6 @@ def format_time(date_str):
     except:
         return date_str
 
-# নতুন ফাংশন: CLI অনুসারে আজকের কাউন্ট
 def get_cli_count_today(rows, cli):
     cli = str(cli).strip().upper()
     count = 0
@@ -148,14 +148,13 @@ def build_message(row, total_today_number, daily_income, cli_count):
         f"🕐 {format_time(date_str)} | 💰 {daily_income:.4f}$"
     )
 
-# ── Main ─────────────────────────────────────────────────────────────────────
-def main():
+# ── Login ────────────────────────────────────────────────────────────────────
+def do_login():
     session = requests.Session()
     session.headers.update({
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     })
 
-    # Login
     resp = session.get(f"{BASE_URL}/login", timeout=15)
     soup = BeautifulSoup(resp.text, "html.parser")
     captcha = solve_captcha(soup)
@@ -164,13 +163,20 @@ def main():
         "username": USERNAME, "password": PASSWORD, "capt": captcha
     }, timeout=15, allow_redirects=True)
 
-    print(f"Login URL: {resp.url}")
     if "login" in resp.url.lower():
         print("❌ Login failed!")
-        return
-    print("✅ Login OK!")
+        return None
 
-    # AJAX Request
+    print("✅ Login OK!")
+    session.headers.update({
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": f"{BASE_URL}/client/SMSCDRStats",
+        "Origin": BASE_URL,
+    })
+    return session
+
+# ── SMS Check (একবার) ────────────────────────────────────────────────────────
+def check_once(session, seen):
     today = date.today().strftime("%Y-%m-%d")
     ajax_url = f"{BASE_URL}/client/res/data_smscdr.php"
 
@@ -180,35 +186,28 @@ def main():
         "frange": "", "fnum": "", "fcli": "",
         "fgdate": "", "fgmonth": "", "fgrange": "", "fgnumber": "", "fgcli": "",
         "fg": "0", "sEcho": "1", "iColumns": "7", "sColumns": ",,,,,,",
-        "iDisplayStart": "0",
-        "iDisplayLength": "2000",
+        "iDisplayStart": "0", "iDisplayLength": "2000",
         "mDataProp_0": "0", "mDataProp_1": "1", "mDataProp_2": "2",
         "mDataProp_3": "3", "mDataProp_4": "4", "mDataProp_5": "5", "mDataProp_6": "6",
         "sSearch": "", "bRegex": "false", "iSortCol_0": "0", "sSortDir_0": "desc",
         "iSortingCols": "1", "_": str(int(datetime.now().timestamp() * 1000))
     }
 
-    session.headers.update({
-        "X-Requested-With": "XMLHttpRequest",
-        "Referer": f"{BASE_URL}/client/SMSCDRStats",
-        "Origin": BASE_URL,
-    })
+    try:
+        r = session.get(ajax_url, params=params, timeout=20)
+    except Exception as e:
+        print(f"Request error: {e}")
+        return seen, False
 
-    r = session.get(ajax_url, params=params, timeout=20)
-
-    if r.status_code == 200:
-        data = r.json()
-        rows = data.get("aaData") or data.get("data") or []
-        print(f"Total rows received: {len(rows)}")
-    else:
+    if r.status_code != 200:
         print(f"AJAX Error: {r.status_code}")
-        return
+        return seen, False
+
+    data = r.json()
+    rows = data.get("aaData") or data.get("data") or []
 
     daily_income = calc_daily_income(rows)
-    print(f"Today's income so far: ${daily_income:.4f}")
-
-    seen = load_seen()
-    new_rows = []
+    new_found = False
 
     for row in rows:
         if isinstance(row, dict):
@@ -217,28 +216,57 @@ def main():
             continue
         row_id = "|".join(str(c) for c in row[:5])
         if row_id not in seen:
-            new_rows.append((row_id, row))
+            number = str(row[2]).strip()
+            cli = str(row[3]).strip()
+            total_today_number = sum(
+                1 for r in rows
+                if str((list(r.values()) if isinstance(r, dict) else r)[2]).strip() == number
+            )
+            cli_count = get_cli_count_today(rows, cli)
+            send_telegram(build_message(row, total_today_number, daily_income, cli_count))
+            seen.add(row_id)
+            new_found = True
 
-    print(f"New messages to notify: {len(new_rows)}")
+    return seen, new_found
 
-    for row_id, row in new_rows:
-        number = str(row[2]).strip()
-        cli = str(row[3]).strip()
+# ── Main Loop ────────────────────────────────────────────────────────────────
+def main():
+    print("🚀 Starting... Login করছি।")
+    session = do_login()
+    if not session:
+        exit(1)  # Login fail হলে job failed দেখাবে
 
-        # Number count (আগের মতো)
-        total_today_number = sum(
-            1 for r in rows
-            if str((list(r.values()) if isinstance(r, dict) else r)[2]).strip() == number
-        )
-        # CLI count (নতুন)
-        cli_count = get_cli_count_today(rows, cli)
+    seen = load_seen()
+    start_time = time.time()
+    loop_count = 0
+    push_interval = 60  # প্রতি ৬০ সেকেন্ডে একবার git push
+    last_push = time.time()
 
-        send_telegram(build_message(row, total_today_number, daily_income, cli_count))
-        seen.add(row_id)
+    print(f"⏳ ১ ঘন্টা চলবে। প্রতি {CHECK_INTERVAL} সেকেন্ডে চেক হবে।")
 
-    save_seen(seen)
-    push_seen()
-    print("✅ Done!")
+    while True:
+        elapsed = time.time() - start_time
+
+        # ১ ঘন্টা শেষ → cleanly exit
+        if elapsed >= RUN_DURATION:
+            print("✅ ১ ঘন্টা সম্পন্ন! সফলভাবে বন্ধ হচ্ছে।")
+            save_seen(seen)
+            push_seen()
+            break
+
+        loop_count += 1
+        remaining = int(RUN_DURATION - elapsed)
+        print(f"[{loop_count}] চেক করছি... (বাকি: {remaining//60}m {remaining%60}s)")
+
+        seen, new_found = check_once(session, seen)
+
+        # নতুন SMS পেলে বা প্রতি ৬০ সেকেন্ডে git push
+        if new_found or (time.time() - last_push >= push_interval):
+            save_seen(seen)
+            push_seen()
+            last_push = time.time()
+
+        time.sleep(CHECK_INTERVAL)
 
 if __name__ == "__main__":
     main()
