@@ -61,7 +61,7 @@ def get_sms_status():
             started = datetime.strptime(created_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
             now_utc = datetime.now(timezone.utc)
             running_sec = int((now_utc - started).total_seconds())
-            sms_remaining = max(0, 3600 - running_sec)
+            sms_remaining = max(0, 195 * 60 - running_sec)
             return f"🟢 চলছে | বাকি: {sms_remaining//60}m {sms_remaining%60}s"
         elif status == "completed":
             return f"⚪ শেষ হয়েছে ({conclusion})"
