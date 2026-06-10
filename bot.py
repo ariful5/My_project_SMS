@@ -7,7 +7,7 @@ TG_TOKEN    = os.environ["TELEGRAM_TOKEN"]
 TG_CHAT_ID  = os.environ["TELEGRAM_CHAT_ID"]
 GH_TOKEN    = os.environ["GH_PAT_TOKEN"]
 GH_REPO     = os.environ["GH_REPO"]
-GH_WORKFLOW = "sms-Check.yml"
+GH_WORKFLOW = "sms-check.yml"
 
 RUN_DURATION = 4 * 60 * 60
 OFFSET = 0
