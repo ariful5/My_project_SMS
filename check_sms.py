@@ -15,7 +15,7 @@ TG_CHAT_ID   = os.environ["TELEGRAM_CHAT_ID"]
 SEEN_FILE    = "seen_ids.json"
 DEVELOPER    = "https://t.me/Napa_Ex"
 
-RUN_DURATION = 60 * 60        # ১ ঘন্টা
+RUN_DURATION = 195 * 60        # ১ ঘন্টা
 CHECK_INTERVAL = 1             # kop 😁 
 
 # ── Country Price List ───────────────────────────────────────────────────────
