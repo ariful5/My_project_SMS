@@ -71,9 +71,47 @@ def main():
                     send_message("❌ Workflow trigger হয়নি। Token চেক করুন।")
 
             elif text == "/status":
-                remaining = int(RUN_DURATION - elapsed)
-                send_message(f"ℹ️ Bot সচল। বাকি: {remaining//3600}h {(remaining%3600)//60}m")
+    remaining_bot = int(RUN_DURATION - elapsed)
+    
+    # GitHub থেকে check_sms workflow এর status নিন
+    url = f"https://api.github.com/repos/{GH_REPO}/actions/workflows/{GH_WORKFLOW}/runs"
+    headers = {
+        "Authorization": f"Bearer {GH_TOKEN}",
+        "Accept": "application/vnd.github+json"
+    }
+    try:
+        r = requests.get(url, headers=headers, timeout=10)
+        runs = r.json().get("workflow_runs", [])
+        if runs:
+            latest = runs[0]
+            status     = latest.get("status", "unknown")
+            conclusion = latest.get("conclusion", "")
+            created_at = latest.get("created_at", "")
 
+            # কতক্ষণ চলছে হিসাব করি
+            if status == "in_progress" and created_at:
+                from datetime import timezone
+                started = datetime.strptime(created_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                now_utc = datetime.now(timezone.utc)
+                running_sec = int((now_utc - started).total_seconds())
+                sms_remaining = max(0, 3600 - running_sec)
+                sms_info = f"🟢 চলছে | বাকি: {sms_remaining//60}m {sms_remaining%60}s"
+            elif status == "completed":
+                sms_info = f"⚪ শেষ হয়েছে ({conclusion})"
+            else:
+                sms_info = f"🟡 {status}"
+        else:
+            sms_info = "কোনো run পাওয়া যায়নি"
+    except Exception as e:
+        sms_info = f"জানা যায়নি ({e})"
+
+    send_message(
+        f"📊 Status\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"🤖 Bot বাকি: {remaining_bot//3600}h {(remaining_bot%3600)//60}m\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"📩 SMS চেকার: {sms_info}"
+    )
         time.sleep(2)
 
 if __name__ == "__main__":
