@@ -163,10 +163,13 @@ def handle_start(chat_id, user_id, username, users):
         send_message(chat_id,
             "👑 <b>Admin Panel</b>\n"
             "━━━━━━━━━━━━━━━\n"
-            "/users — সব ইউজার দেখুন\n"
-            "/sms_start — SMS চেকার চালু করুন\n"
-            "/sms_stop — SMS চেকার বন্ধ করুন\n"
-            "/status — অবস্থা দেখুন"
+            "👥 /users — সব ইউজার লিস্ট\n"
+            "✅ /approve @username\n"
+            "🚫 /ban @username\n"
+            "⏳ /pending @username\n"
+            "▶️ /sms_start — SMS চেকার শুরু\n"
+            "⏹ /stop — SMS চেকার বন্ধ\n"
+            "━━━━━━━━━━━━━━━"
         )
         return users
 
@@ -236,8 +239,27 @@ def handle_sms_start(chat_id, user_id, users):
     uid = str(user_id)
     is_admin = uid == str(ADMIN_ID)
 
+    # Admin হলেও check করো SECRET এ credential আছে কিনা
+    if is_admin:
+        # Admin এর জন্য approved ইউজার আছে কিনা দেখো
+        approved_count = sum(1 for u in users.values() if u.get("status") == "approved" and u.get("sms_on", False))
+        if approved_count == 0:
+            send_message(chat_id,
+                "⚠️ <b>কোনো approved ইউজার নেই!</b>\n"
+                "━━━━━━━━━━━━━━━\n"
+                "SMS চেকার চালু করতে আগে\n"
+                "কমপক্ষে একজন ইউজার approve করুন।"
+            )
+            return users
+
     if not is_admin and (uid not in users or users[uid]["status"] != "approved"):
-        send_message(chat_id, "⚠️ আপনার একাউন্ট approved নয়।")
+        if uid not in users or users[uid].get("status") == "new":
+            markup = {"inline_keyboard": [[{"text": "🔗 একাউন্ট যোগ করুন", "callback_data": "link_account"}]]}
+            send_message(chat_id, "⚠️ আগে একাউন্ট যোগ করুন।", markup)
+        elif users[uid].get("status") == "pending":
+            send_message(chat_id, "⏳ আপনার একাউন্ট এখনো অনুমোদনের অপেক্ষায়।")
+        elif users[uid].get("status") == "banned":
+            send_message(chat_id, "🚫 আপনার একাউন্ট ব্যান করা হয়েছে।")
         return users
 
     send_message(chat_id, "⏳ SMS চেকার চালু করছি...")
