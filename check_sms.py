@@ -3,22 +3,21 @@ import json
 import os
 import re
 import time
+import threading
 from bs4 import BeautifulSoup
 from datetime import datetime, date, timedelta
 
-# ── Config ───────────────────────────────────────────────────────────────────
-BASE_URL     = os.environ["LAMIX_URL"]
-USERNAME     = os.environ["LAMIX_USERNAME"]
-PASSWORD     = os.environ["LAMIX_PASSWORD"]
-TG_TOKEN     = os.environ["TELEGRAM_TOKEN"]
-TG_CHAT_ID   = os.environ["TELEGRAM_CHAT_ID"]
-SEEN_FILE    = "seen_ids.json"
-DEVELOPER    = "https://t.me/Napa_Ex"
+# ── Global Config ─────────────────────────────────────────────────────────────
+BASE_URL       = os.environ["LAMIX_URL"]
+TG_TOKEN       = os.environ["TELEGRAM_TOKEN"]
+ADMIN_ID       = os.environ["ADMIN_CHAT_ID"]
+USERS_FILE     = "users.json"
+SEEN_FILE      = "seen_ids.json"
+DEVELOPER      = "https://t.me/Napa_Ex"
+RUN_DURATION   = 195 * 60
+CHECK_INTERVAL = 1
 
-RUN_DURATION = 195 * 60        # ১ ঘন্টা
-CHECK_INTERVAL = 1             # kop 😁 
-
-# ── Country Price List ───────────────────────────────────────────────────────
+# ── Country Price List ────────────────────────────────────────────────────────
 COUNTRY_PRICES = {
     "afghanistan": 0.0078, "algeria": 0.0108, "angola": 0.009, "argentina": 0.0078,
     "armenia": 0.0078, "karabakh": 0.0078, "azerbaijan": 0.006, "belarus": 0.006,
@@ -40,6 +39,35 @@ COUNTRY_PRICES = {
     "uzbekistan": 0.0078, "vietnam": 0.0078, "mobifone": 0.0078, "zimbabwe": 0.0078,
 }
 
+# ── Seen IDs (per user) ───────────────────────────────────────────────────────
+seen_lock = threading.Lock()
+
+def get_session_date():
+    bd_now = datetime.utcnow() + timedelta(hours=6)
+    return (bd_now - timedelta(hours=6)).strftime("%Y-%m-%d")
+
+def load_all_seen():
+    if os.path.exists(SEEN_FILE):
+        with open(SEEN_FILE) as f:
+            data = json.load(f)
+            if isinstance(data, dict) and data.get("date") == get_session_date():
+                return data.get("users", {})
+    return {}
+
+def save_all_seen(all_seen):
+    with seen_lock:
+        data = {"date": get_session_date(), "users": all_seen}
+        with open(SEEN_FILE, "w") as f:
+            json.dump(data, f)
+
+def push_seen():
+    os.system('git config user.email "action@github.com"')
+    os.system('git config user.name "GitHub Action"')
+    os.system(f'git add {SEEN_FILE}')
+    os.system('git commit -m "chore: update seen_ids" || true')
+    os.system('git push --force || true')
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
 def get_price_from_range(range_str):
     r = range_str.lower()
     for country, price in sorted(COUNTRY_PRICES.items(), key=lambda x: -len(x[0])):
@@ -58,55 +86,6 @@ def calc_daily_income(rows):
             continue
         total += get_price_from_range(range_)
     return round(total, 4)
-
-# ── Helpers ──────────────────────────────────────────────────────────────────
-def get_session_date():
-    bd_now = datetime.utcnow() + timedelta(hours=6)
-    return (bd_now - timedelta(hours=6)).strftime("%Y-%m-%d")
-
-def load_seen():
-    if os.path.exists(SEEN_FILE):
-        with open(SEEN_FILE) as f:
-            data = json.load(f)
-            if isinstance(data, list):
-                return set()
-            if data.get("date", "") == get_session_date():
-                return set(data.get("ids", []))
-    return set()
-
-def save_seen(ids):
-    data = {"date": get_session_date(), "ids": list(ids)}
-    with open(SEEN_FILE, "w") as f:
-        json.dump(data, f)
-
-def push_seen():
-    os.system('git config user.email "action@github.com"')
-    os.system('git config user.name "GitHub Action"')
-    os.system(f'git add {SEEN_FILE}')
-    os.system('git commit -m "chore: update seen_ids" || true')
-    os.system('git push --force || true')
-
-def send_telegram(text):
-    url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": TG_CHAT_ID,
-        "text": text,
-        "parse_mode": "HTML",
-        "reply_markup": {"inline_keyboard": [[{"text": "👨‍💻 Developer", "url": DEVELOPER}]]}
-    }
-    try:
-        requests.post(url, json=payload, timeout=10)
-    except Exception as e:
-        print(f"Telegram error: {e}")
-
-def solve_captcha(soup):
-    text = soup.get_text(" ", strip=True)
-    match = re.search(r'(\d+)\s*([+\-])\s*(\d+)', text)
-    if match:
-        a, op, b = int(match.group(1)), match.group(2), int(match.group(3))
-        ans = a + b if op == '+' else a - b
-        return str(ans)
-    return "0"
 
 def format_time(date_str):
     try:
@@ -148,35 +127,62 @@ def build_message(row, total_today_number, daily_income, cli_count):
         f"🕐 {format_time(date_str)} | 💰 {daily_income:.4f}$"
     )
 
-# ── Login ────────────────────────────────────────────────────────────────────
-def do_login():
+# ── Telegram ──────────────────────────────────────────────────────────────────
+def send_telegram(chat_id, text):
+    url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML",
+        "reply_markup": {"inline_keyboard": [[{"text": "👨‍💻 Developer", "url": DEVELOPER}]]}
+    }
+    try:
+        requests.post(url, json=payload, timeout=10)
+    except Exception as e:
+        print(f"Telegram error [{chat_id}]: {e}")
+
+# ── Login ─────────────────────────────────────────────────────────────────────
+def solve_captcha(soup):
+    text = soup.get_text(" ", strip=True)
+    match = re.search(r'(\d+)\s*([+\-])\s*(\d+)', text)
+    if match:
+        a, op, b = int(match.group(1)), match.group(2), int(match.group(3))
+        return str(a + b if op == '+' else a - b)
+    return "0"
+
+def do_login(username, password):
     session = requests.Session()
     session.headers.update({
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     })
+    try:
+        resp = session.get(f"{BASE_URL}/login", timeout=15)
+        soup = BeautifulSoup(resp.text, "html.parser")
+        captcha = solve_captcha(soup)
 
-    resp = session.get(f"{BASE_URL}/login", timeout=15)
-    soup = BeautifulSoup(resp.text, "html.parser")
-    captcha = solve_captcha(soup)
+        resp = session.post(f"{BASE_URL}/signin", data={
+            "username": username,
+            "password": password,
+            "capt": captcha
+        }, timeout=15, allow_redirects=True)
 
-    resp = session.post(f"{BASE_URL}/signin", data={
-        "username": USERNAME, "password": PASSWORD, "capt": captcha
-    }, timeout=15, allow_redirects=True)
+        if "login" in resp.url.lower():
+            print(f"❌ Login failed: {username}")
+            return None
 
-    if "login" in resp.url.lower():
-        print("❌ Login failed!")
+        print(f"✅ Login OK: {username}")
+        session.headers.update({
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": f"{BASE_URL}/client/SMSCDRStats",
+            "Origin": BASE_URL,
+        })
+        return session
+    except Exception as e:
+        print(f"Login error [{username}]: {e}")
         return None
 
-    print("✅ Login OK!")
-    session.headers.update({
-        "X-Requested-With": "XMLHttpRequest",
-        "Referer": f"{BASE_URL}/client/SMSCDRStats",
-        "Origin": BASE_URL,
-    })
-    return session
-
-# ── SMS Check (একবার) ────────────────────────────────────────────────────────
-def check_once(session, seen):
+# ── SMS Check ─────────────────────────────────────────────────────────────────
+def check_once(session, seen_ids):
     today = date.today().strftime("%Y-%m-%d")
     ajax_url = f"{BASE_URL}/client/res/data_smscdr.php"
 
@@ -197,15 +203,13 @@ def check_once(session, seen):
         r = session.get(ajax_url, params=params, timeout=20)
     except Exception as e:
         print(f"Request error: {e}")
-        return seen, False
+        return seen_ids, False
 
     if r.status_code != 200:
-        print(f"AJAX Error: {r.status_code}")
-        return seen, False
+        return seen_ids, False
 
     data = r.json()
     rows = data.get("aaData") or data.get("data") or []
-
     daily_income = calc_daily_income(rows)
     new_found = False
 
@@ -215,58 +219,139 @@ def check_once(session, seen):
         if str(row[2]).strip() in ("0", "", "N/A"):
             continue
         row_id = "|".join(str(c) for c in row[:5])
-        if row_id not in seen:
+        if row_id not in seen_ids:
             number = str(row[2]).strip()
-            cli = str(row[3]).strip()
+            cli    = str(row[3]).strip()
             total_today_number = sum(
                 1 for r in rows
                 if str((list(r.values()) if isinstance(r, dict) else r)[2]).strip() == number
             )
             cli_count = get_cli_count_today(rows, cli)
-            send_telegram(build_message(row, total_today_number, daily_income, cli_count))
-            seen.add(row_id)
+            seen_ids.add(row_id)
             new_found = True
+            yield row, total_today_number, daily_income, cli_count
 
-    return seen, new_found
+    return seen_ids, new_found
 
-# ── Main Loop ────────────────────────────────────────────────────────────────
-def main():
-    print("🚀 Starting... Login করছি।")
-    session = do_login()
+# ── Per-User Worker Thread ────────────────────────────────────────────────────
+def user_worker(uid, user_data, all_seen, all_seen_lock):
+    tg_id    = user_data.get("tg_id") or uid
+    username = user_data.get("lamix_username", "")
+    password = user_data.get("lamix_password", "")
+
+    if not username or not password:
+        print(f"[{username}] credential নেই, skip।")
+        return
+
+    print(f"[{username}] শুরু হচ্ছে...")
+    session = do_login(username, password)
     if not session:
-        exit(1)  # Login fail হলে job failed দেখাবে
+        send_telegram(tg_id,
+            f"❌ <b>Login ব্যর্থ হয়েছে!</b>\n"
+            f"Username বা Password ভুল হতে পারে।"
+        )
+        return
 
-    seen = load_seen()
-    start_time = time.time()
-    loop_count = 0
-    push_interval = 60  # প্রতি ৬০ সেকেন্ডে একবার git push
-    last_push = time.time()
+    send_telegram(tg_id,
+        "✅ <b>SMS চেকার চালু হয়েছে!</b>\n"
+        "━━━━━━━━━━━━━━━\n"
+        "⏱ চলবে: ১৯৫ মিনিট\n"
+        "🔄 চেক হবে: প্রতি ১ সেকেন্ডে"
+    )
 
-    print(f"⏳ ১ ঘন্টা চলবে। প্রতি {CHECK_INTERVAL} সেকেন্ডে চেক হবে।")
+    with all_seen_lock:
+        seen_ids = set(all_seen.get(uid, []))
+
+    start_time  = time.time()
+    last_push   = time.time()
+    loop_count  = 0
 
     while True:
         elapsed = time.time() - start_time
-
-        # ১ ঘন্টা শেষ → cleanly exit
         if elapsed >= RUN_DURATION:
-            print("✅ ১ ঘন্টা সম্পন্ন! সফলভাবে বন্ধ হচ্ছে।")
-            save_seen(seen)
-            push_seen()
+            print(f"[{username}] ১৯৫ মিনিট সম্পন্ন।")
             break
 
         loop_count += 1
         remaining = int(RUN_DURATION - elapsed)
-        print(f"[{loop_count}] চেক করছি... (বাকি: {remaining//60}m {remaining%60}s)")
+        print(f"[{username}][{loop_count}] বাকি: {remaining//60}m {remaining%60}s")
 
-        seen, new_found = check_once(session, seen)
+        new_found = False
+        try:
+            for row, total, income, cli_count in check_once(session, seen_ids):
+                send_telegram(tg_id, build_message(row, total, income, cli_count))
+                new_found = True
+        except Exception as e:
+            print(f"[{username}] check error: {e}")
 
-        # নতুন SMS পেলে বা প্রতি ৬০ সেকেন্ডে git push
-        if new_found or (time.time() - last_push >= push_interval):
-            save_seen(seen)
-            push_seen()
+        # Seen IDs আপডেট
+        if new_found or (time.time() - last_push >= 60):
+            with all_seen_lock:
+                all_seen[uid] = list(seen_ids)
+            save_all_seen(all_seen)
             last_push = time.time()
 
         time.sleep(CHECK_INTERVAL)
+
+    # শেষে push
+    with all_seen_lock:
+        all_seen[uid] = list(seen_ids)
+    save_all_seen(all_seen)
+    push_seen()
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+def main():
+    # users.json লোড করো
+    if not os.path.exists(USERS_FILE):
+        print("❌ users.json পাওয়া যায়নি!")
+        return
+
+    with open(USERS_FILE) as f:
+        users = json.load(f)
+
+    # GitHub Secrets থেকে credential যোগ করো
+    for i in range(1, 51):
+        cred = os.environ.get(f"USER{i}_CRED", "")
+        uid  = os.environ.get(f"USER{i}_ID", "")
+        if cred and uid and "::" in cred:
+            uname, passwd = cred.split("::", 1)
+            if uid in users:
+                users[uid]["lamix_username"] = uname
+                users[uid]["lamix_password"] = passwd
+
+    # Approved ইউজার যাদের sms_on = True তাদের thread চালাও
+    all_seen      = load_all_seen()
+    all_seen_lock = threading.Lock()
+    threads       = []
+
+    approved_users = {
+        uid: u for uid, u in users.items()
+        if u.get("status") == "approved" and u.get("sms_on", False)
+    }
+
+    if not approved_users:
+        print("⚠️ কোনো active approved ইউজার নেই।")
+        return
+
+    print(f"✅ {len(approved_users)} জন ইউজারের জন্য thread শুরু হচ্ছে...")
+
+    for uid, user_data in approved_users.items():
+        # tg_id সেট করো
+        user_data["tg_id"] = uid
+        t = threading.Thread(
+            target=user_worker,
+            args=(uid, user_data, all_seen, all_seen_lock),
+            daemon=True
+        )
+        t.start()
+        threads.append(t)
+        time.sleep(0.5)  # একসাথে login flood এড়াতে
+
+    # সব thread শেষ হওয়ার অপেক্ষা
+    for t in threads:
+        t.join()
+
+    print("✅ সব thread সম্পন্ন।")
 
 if __name__ == "__main__":
     main()
