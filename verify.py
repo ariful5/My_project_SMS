@@ -10,7 +10,6 @@ TG_TOKEN   = os.environ["TELEGRAM_TOKEN"]
 ADMIN_ID   = os.environ["ADMIN_CHAT_ID"]
 USERS_FILE = "users.json"
 
-# verify.yml থেকে inputs হিসেবে আসবে
 USER_ID         = os.environ["INPUT_USER_ID"]
 LAMIX_USERNAME  = os.environ["INPUT_LAMIX_USERNAME"]
 LAMIX_PASSWORD  = os.environ["INPUT_LAMIX_PASSWORD"]
@@ -88,20 +87,17 @@ def main():
     print(f"🔍 Verifying: {LAMIX_USERNAME}")
 
     users = load_users()
-
-    # Login check করো
     success = verify_login(LAMIX_USERNAME, LAMIX_PASSWORD)
 
     if success:
         print(f"✅ Login সফল: {LAMIX_USERNAME}")
 
-        # users.json আপডেট করো (password ছাড়া)
         if USER_ID in users:
             users[USER_ID]["status"] = "pending"
             users[USER_ID]["lamix_username"] = LAMIX_USERNAME
             save_users(users)
 
-        # ইউজারকে জানাও
+        # শুধু ইউজারকে জানাও — Admin notification bot.py থেকেই যাবে
         send_telegram(USER_ID,
             "✅ <b>একাউন্ট যাচাই সফল হয়েছে!</b>\n"
             "━━━━━━━━━━━━━━━\n"
@@ -109,34 +105,14 @@ def main():
             "অনুমোদন হলে আপনাকে জানানো হবে।"
         )
 
-        # Admin কে জানাও Approve/Ban বাটন সহ
-        tg_username = users.get(USER_ID, {}).get("tg_username", "N/A")
-        send_telegram(ADMIN_ID,
-            f"🆕 <b>নতুন ইউজার যাচাই সম্পন্ন!</b>\n"
-            f"━━━━━━━━━━━━━━━\n"
-            f"👤 Telegram: @{tg_username}\n"
-            f"🆔 ID: <code>{USER_ID}</code>\n"
-            f"🔑 LAMIX User: <code>{LAMIX_USERNAME}</code>\n"
-            f"✅ Login: সফল\n"
-            f"━━━━━━━━━━━━━━━",
-            reply_markup={
-                "inline_keyboard": [[
-                    {"text": "✅ Approve", "callback_data": f"approve|{USER_ID}"},
-                    {"text": "🚫 Ban",     "callback_data": f"ban|{USER_ID}"}
-                ]]
-            }
-        )
-
     else:
         print(f"❌ Login ব্যর্থ: {LAMIX_USERNAME}")
 
-        # users.json এ status new করো
         if USER_ID in users:
             users[USER_ID]["status"] = "new"
             users[USER_ID]["step"] = ""
             save_users(users)
 
-        # ইউজারকে জানাও
         send_telegram(USER_ID,
             "❌ <b>একাউন্ট যাচাই ব্যর্থ হয়েছে!</b>\n"
             "━━━━━━━━━━━━━━━\n"
