@@ -3,30 +3,31 @@ name: Telegram Bot
 on:
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  bot:
+  run-bot:
     runs-on: ubuntu-latest
     timeout-minutes: 250
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_PAT_TOKEN }}
 
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: '3.11'
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install requests beautifulsoup4
 
-      - name: Run bot
+      - name: Run Bot
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          GH_PAT_TOKEN: ${{ secrets.GH_PAT_TOKEN }}
-          GH_REPO: ${{ secrets.GH_REPO }}
+          ADMIN_CHAT_ID:  ${{ secrets.ADMIN_CHAT_ID }}
+          GH_PAT_TOKEN:   ${{ secrets.GH_PAT_TOKEN }}
+          GH_REPO:        ${{ secrets.GH_REPO }}
+          LAMIX_URL:      ${{ secrets.LAMIX_URL }}
         run: python bot.py
+        
