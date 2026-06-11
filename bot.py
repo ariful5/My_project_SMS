@@ -14,7 +14,7 @@ LAMIX_URL    = os.environ["LAMIX_URL"]
 USERS_FILE        = "users.json"
 SMS_WORKFLOW      = "sms-check.yml"
 VERIFY_WORKFLOW   = "verify.yml"
-RUN_DURATION      = 4 * 60 * 60  # ৪ ঘন্টা
+RUN_DURATION      = 4 * 60 * 60
 
 OFFSET = 0
 
@@ -187,12 +187,10 @@ def notify_admin_new_user(tg_id, tg_username, lamix_username, lamix_password):
 def handle_start(chat_id, user_id, username, users):
     uid = str(user_id)
 
-    # ── Admin ──
     if uid == str(ADMIN_ID):
         send_message(chat_id, ADMIN_PANEL_TEXT)
         return users
 
-    # ── নতুন ইউজার (প্রথমবার) ──
     if uid not in users:
         users[uid] = {
             "tg_username": username or "",
@@ -210,7 +208,6 @@ def handle_start(chat_id, user_id, username, users):
         send_message(chat_id, WELCOME_TEXT, markup)
         return users
 
-    # ── বিদ্যমান ইউজার ──
     status = users[uid].get("status", "new")
 
     if status == "new":
@@ -228,7 +225,6 @@ def handle_start(chat_id, user_id, username, users):
             "নিচের বাটনে চাপুন 👇",
             markup
         )
-
     elif status == "pending":
         send_message(chat_id,
             "⏳ <b>অনুমোদনের অপেক্ষায়</b>\n"
@@ -236,13 +232,11 @@ def handle_start(chat_id, user_id, username, users):
             "আপনার একাউন্ট যাচাই হচ্ছে।\n"
             "Admin অনুমোদন করলেই শুরু করতে পারবেন।"
         )
-
     elif status == "banned":
         send_message(chat_id,
             "🚫 <b>আপনার একাউন্ট ব্যান করা হয়েছে।</b>\n"
             "বিস্তারিত জানতে Admin-এর সাথে যোগাযোগ করুন।"
         )
-
     elif status == "approved":
         send_message(chat_id,
             f"👋 স্বাগতম @{username}!\n"
@@ -371,7 +365,6 @@ def handle_callback(callback, users):
     from_id = str(callback["from"]["id"])
     chat_id = callback["message"]["chat"]["id"]
 
-    # ইউজার একাউন্ট লিংক শুরু করতে চাইছে
     if data == "link_account":
         answer_callback(cb_id)
         uid = from_id
@@ -393,7 +386,6 @@ def handle_callback(callback, users):
         )
         return users
 
-    # Admin approve/ban
     if from_id != str(ADMIN_ID):
         answer_callback(cb_id, "⚠️ শুধু Admin এই কাজ করতে পারবেন।")
         return users
@@ -419,7 +411,6 @@ def handle_callback(callback, users):
             "এখন আপনি সব কমান্ড ব্যবহার করতে পারবেন।\n"
             "SMS চেকার চালু করতে /sms_start দিন।"
         )
-
     elif action == "ban":
         users[target_id]["status"] = "banned"
         save_users(users)
@@ -430,7 +421,7 @@ def handle_callback(callback, users):
 
     return users
 
-# ── Step Handler (username/password input) ────────────────────────────────────
+# ── Step Handler ──────────────────────────────────────────────────────────────
 def handle_step(chat_id, user_id, text, users):
     uid = str(user_id)
     if uid not in users:
@@ -450,6 +441,7 @@ def handle_step(chat_id, user_id, text, users):
         lamix_username = users[uid].get("lamix_username", "")
         lamix_password = text.strip()
 
+        # ── সাথে সাথে step বদলে দাও যাতে duplicate না হয় ──
         users[uid]["step"] = "verifying"
         save_users(users)
 
@@ -465,12 +457,15 @@ def handle_step(chat_id, user_id, text, users):
         })
 
         if triggered:
+            # ── শুধু একবারই admin-কে notify করা হবে ──
             notify_admin_new_user(
                 uid,
                 users[uid].get("tg_username", ""),
                 lamix_username,
                 lamix_password
             )
+            users[uid]["status"] = "pending"
+            save_users(users)
         else:
             send_message(chat_id,
                 "❌ যাচাই করা যায়নি। আবার চেষ্টা করুন।\n"
@@ -482,7 +477,7 @@ def handle_step(chat_id, user_id, text, users):
 
     return users
 
-# ── Admin Text Commands ────────────────────────────────────────────────────────
+# ── Admin Text Commands ───────────────────────────────────────────────────────
 def handle_admin_command(chat_id, text, users):
     parts = text.strip().split()
     cmd = parts[0].lower()
@@ -577,7 +572,6 @@ def main():
         for update in updates:
             OFFSET = update["update_id"] + 1
 
-            # ── Callback (button press) ──
             if "callback_query" in update:
                 cb = update["callback_query"]
                 users = handle_callback(cb, users)
@@ -598,38 +592,31 @@ def main():
             uid      = str(user_id)
             is_admin = uid == str(ADMIN_ID)
 
-            # ── Admin text commands ──
             if is_admin and any(
                 text.lower().startswith(c) for c in ["/approve", "/ban", "/pending", "/new", "/users"]
             ):
                 users = handle_admin_command(chat_id, text, users)
                 continue
 
-            # ── Step চলছে কিনা (username/password input) ──
+            # ── Step চলছে কিনা — command হলে skip ──
             if uid in users and users[uid].get("step", "") in ["await_username", "await_password"]:
                 if not text.startswith("/"):
                     users = handle_step(chat_id, user_id, text, users)
                     continue
 
-            # ── Commands ──
             if text == "/start":
                 users = handle_start(chat_id, user_id, username, users)
-
             elif text == "/sms_start":
                 users = handle_sms_start(chat_id, user_id, users)
-
             elif text in ("/sms_stop", "/stop"):
                 users = handle_sms_stop(chat_id, user_id, users)
-
             elif text == "/status":
                 users = handle_status(chat_id, user_id, users)
-
             elif text == "/help":
                 if is_admin:
                     send_message(chat_id, ADMIN_HELP_TEXT)
                 else:
                     send_message(chat_id, HELP_TEXT)
-
             else:
                 if is_admin or (uid in users and users[uid].get("status") == "approved"):
                     send_message(chat_id, "⚠️ অপরিচিত কমান্ড। /help দেখুন।")
