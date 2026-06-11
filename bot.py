@@ -447,22 +447,22 @@ def handle_step(chat_id, user_id, text, users):
         )
 
     elif step == "await_password":
-    lamix_username = users[uid].get("lamix_username", "")
-    lamix_password = text.strip()
+         lamix_username = users[uid].get("lamix_username", "")
+         lamix_password = text.strip()
 
-    users[uid]["step"] = "verifying"
-    save_users(users)
+        users[uid]["step"] = "verifying"
+        save_users(users)
 
-    send_message(chat_id,
-        "⏳ <b>একাউন্ট যাচাই করা হচ্ছে...</b>\n"
-        "একটু অপেক্ষা করুন।"
-    )
+        send_message(chat_id,
+            "⏳ <b>একাউন্ট যাচাই করা হচ্ছে...</b>\n"
+            "একটু অপেক্ষা করুন।"
+        )
 
-    triggered = trigger_workflow(VERIFY_WORKFLOW, {
+        triggered = trigger_workflow(VERIFY_WORKFLOW, {
         "user_id": uid,
         "lamix_username": lamix_username,
         "lamix_password": lamix_password
-    })
+        })
 
     if triggered:
         # Admin কে password সহ notify করুন — users.json এ সেভ হবে না
