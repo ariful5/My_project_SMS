@@ -2,8 +2,8 @@
   "6993154309": {
     "tg_username": "Shakil_Is",
     "status": "new",
-    "lamix_username": "",
+    "lamix_username": "Napaabc",
     "sms_on": false,
-    "step": "await_username"
+    "step": "await_password"
   }
 }
