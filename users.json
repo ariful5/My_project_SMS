@@ -4,6 +4,6 @@
     "status": "new",
     "lamix_username": "",
     "sms_on": false,
-    "step": ""
+    "step": "await_username"
   }
 }
