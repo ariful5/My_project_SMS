@@ -190,7 +190,23 @@ def handle_start(chat_id, user_id, username, users):
 
     status = users[uid]["status"]
 
-    if status == "pending":
+    if status == "new":
+        markup = {
+            "inline_keyboard": [[
+                {"text": "🔗 একাউন্ট যোগ করুন", "callback_data": "link_account"}
+            ]]
+        }
+        send_message(chat_id,
+            "⚠️ <b>একাউন্ট যোগ করা হয়নি!</b>\n"
+            "━━━━━━━━━━━━━━━\n"
+            "SMS চেকার ব্যবহার করতে\n"
+            "আগে আপনার LAMIX একাউন্ট যোগ করুন।\n"
+            "━━━━━━━━━━━━━━━\n"
+            "নিচের বাটনে চাপুন 👇",
+            markup
+        )
+
+    elif status == "pending":
         send_message(chat_id,
             "⏳ <b>অনুমোদনের অপেক্ষায়</b>\n"
             "━━━━━━━━━━━━━━━\n"
