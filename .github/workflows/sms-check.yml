@@ -1,33 +1,83 @@
-name: Check SMS
+name: SMS Checker
 
 on:
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
-  check:
+  run-sms-checker:
     runs-on: ubuntu-latest
-    timeout-minutes: 200
+    timeout-minutes: 210
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_PAT_TOKEN }}
 
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: '3.11'
 
       - name: Install dependencies
         run: pip install requests beautifulsoup4
 
-      - name: Run script
+      - name: Run SMS Checker
         env:
-          LAMIX_URL: ${{ secrets.LAMIX_URL }}
-          LAMIX_USERNAME: ${{ secrets.LAMIX_USERNAME }}
-          LAMIX_PASSWORD: ${{ secrets.LAMIX_PASSWORD }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ADMIN_CHAT_ID:  ${{ secrets.ADMIN_CHAT_ID }}
+          GH_PAT_TOKEN:   ${{ secrets.GH_PAT_TOKEN }}
+          GH_REPO:        ${{ secrets.GH_REPO }}
+          LAMIX_URL:      ${{ secrets.LAMIX_URL }}
+          USER1:  ${{ secrets.USER1 }}
+          USER2:  ${{ secrets.USER2 }}
+          USER3:  ${{ secrets.USER3 }}
+          USER4:  ${{ secrets.USER4 }}
+          USER5:  ${{ secrets.USER5 }}
+          USER6:  ${{ secrets.USER6 }}
+          USER7:  ${{ secrets.USER7 }}
+          USER8:  ${{ secrets.USER8 }}
+          USER9:  ${{ secrets.USER9 }}
+          USER10: ${{ secrets.USER10 }}
+          USER11: ${{ secrets.USER11 }}
+          USER12: ${{ secrets.USER12 }}
+          USER13: ${{ secrets.USER13 }}
+          USER14: ${{ secrets.USER14 }}
+          USER15: ${{ secrets.USER15 }}
+          USER16: ${{ secrets.USER16 }}
+          USER17: ${{ secrets.USER17 }}
+          USER18: ${{ secrets.USER18 }}
+          USER19: ${{ secrets.USER19 }}
+          USER20: ${{ secrets.USER20 }}
+          USER21: ${{ secrets.USER21 }}
+          USER22: ${{ secrets.USER22 }}
+          USER23: ${{ secrets.USER23 }}
+          USER24: ${{ secrets.USER24 }}
+          USER25: ${{ secrets.USER25 }}
+          USER26: ${{ secrets.USER26 }}
+          USER27: ${{ secrets.USER27 }}
+          USER28: ${{ secrets.USER28 }}
+          USER29: ${{ secrets.USER29 }}
+          USER30: ${{ secrets.USER30 }}
+          USER31: ${{ secrets.USER31 }}
+          USER32: ${{ secrets.USER32 }}
+          USER33: ${{ secrets.USER33 }}
+          USER34: ${{ secrets.USER34 }}
+          USER35: ${{ secrets.USER35 }}
+          USER36: ${{ secrets.USER36 }}
+          USER37: ${{ secrets.USER37 }}
+          USER38: ${{ secrets.USER38 }}
+          USER39: ${{ secrets.USER39 }}
+          USER40: ${{ secrets.USER40 }}
+          USER41: ${{ secrets.USER41 }}
+          USER42: ${{ secrets.USER42 }}
+          USER43: ${{ secrets.USER43 }}
+          USER44: ${{ secrets.USER44 }}
+          USER45: ${{ secrets.USER45 }}
+          USER46: ${{ secrets.USER46 }}
+          USER47: ${{ secrets.USER47 }}
+          USER48: ${{ secrets.USER48 }}
+          USER49: ${{ secrets.USER49 }}
+          USER50: ${{ secrets.USER50 }}
         run: python check_sms.py
+        
