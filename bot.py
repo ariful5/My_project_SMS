@@ -35,10 +35,38 @@ WELCOME_TEXT = (
 HELP_TEXT = (
     "📋 <b>কমান্ড লিস্ট:</b>\n"
     "━━━━━━━━━━━━━━━\n"
-    "▶️ /start — SMS চেকার চালু করুন\n"
-    "⏹ /stop  — SMS চেকার বন্ধ করুন\n"
+    "▶️ /sms_start — SMS চেকার চালু করুন\n"
+    "⏹ /sms_stop  — SMS চেকার বন্ধ করুন\n"
     "📊 /status — বর্তমান অবস্থা দেখুন\n"
     "❓ /help  — এই মেনু দেখুন\n"
+    "━━━━━━━━━━━━━━━"
+)
+
+ADMIN_HELP_TEXT = (
+    "👑 <b>Admin কমান্ড লিস্ট</b>\n"
+    "━━━━━━━━━━━━━━━\n"
+    "▶️ /sms_start — SMS চেকার শুরু\n"
+    "⏹ /sms_stop — SMS চেকার বন্ধ\n"
+    "📊 /status — বর্তমান অবস্থা\n"
+    "━━━━━━━━━━━━━━━\n"
+    "👥 /users — সব ইউজার লিস্ট\n"
+    "✅ /approve @username\n"
+    "🚫 /ban @username\n"
+    "⏳ /pending @username\n"
+    "━━━━━━━━━━━━━━━"
+)
+
+ADMIN_PANEL_TEXT = (
+    "👑 <b>Admin Panel</b>\n"
+    "━━━━━━━━━━━━━━━\n"
+    "👥 /users — সব ইউজার লিস্ট\n"
+    "✅ /approve @username\n"
+    "🚫 /ban @username\n"
+    "⏳ /pending @username\n"
+    "▶️ /sms_start — SMS চেকার শুরু\n"
+    "⏹ /sms_stop — SMS চেকার বন্ধ\n"
+    "📊 /status — অবস্থা দেখুন\n"
+    "❓ /help — কমান্ড লিস্ট\n"
     "━━━━━━━━━━━━━━━"
 )
 
@@ -156,31 +184,21 @@ def notify_admin_new_user(tg_id, tg_username, lamix_username):
 
 # ── Command Handlers ──────────────────────────────────────────────────────────
 def handle_start(chat_id, user_id, username, users):
+    """
+    /start কমান্ড:
+    - Admin → Admin Panel দেখায়
+    - নতুন ইউজার → Welcome + একাউন্ট যোগ বাটন
+    - বিদ্যমান ইউজার → স্ট্যাটাস অনুযায়ী মেসেজ
+    """
     uid = str(user_id)
 
-    # Admin
+    # ── Admin ──
     if uid == str(ADMIN_ID):
-        send_message(chat_id,
-            "👑 <b>Admin Panel</b>\n"
-            "━━━━━━━━━━━━━━━\n"
-            "👥 /users — সব ইউজার লিস্ট\n"
-            "✅ /approve @username\n"
-            "🚫 /ban @username\n"
-            "⏳ /pending @username\n"
-            "▶️ /sms_start — SMS চেকার শুরু\n"
-            "⏹ /stop — SMS চেকার বন্ধ\n"
-            "━━━━━━━━━━━━━━━"
-        )
+        send_message(chat_id, ADMIN_PANEL_TEXT)
         return users
 
-    # নতুন ইউজার
+    # ── নতুন ইউজার (প্রথমবার) ──
     if uid not in users:
-        markup = {
-            "inline_keyboard": [[
-                {"text": "🔗 একাউন্ট যোগ করুন", "callback_data": "link_account"}
-            ]]
-        }
-        send_message(chat_id, WELCOME_TEXT, markup)
         users[uid] = {
             "tg_username": username or "",
             "status": "new",
@@ -189,9 +207,16 @@ def handle_start(chat_id, user_id, username, users):
             "step": ""
         }
         save_users(users)
+        markup = {
+            "inline_keyboard": [[
+                {"text": "🔗 একাউন্ট যোগ করুন", "callback_data": "link_account"}
+            ]]
+        }
+        send_message(chat_id, WELCOME_TEXT, markup)
         return users
 
-    status = users[uid]["status"]
+    # ── বিদ্যমান ইউজার ──
+    status = users[uid].get("status", "new")
 
     if status == "new":
         markup = {
@@ -227,40 +252,43 @@ def handle_start(chat_id, user_id, username, users):
         send_message(chat_id,
             f"👋 স্বাগতম @{username}!\n"
             "━━━━━━━━━━━━━━━\n"
-            "▶️ /start — SMS চেকার চালু\n"
-            "⏹ /stop  — SMS চেকার বন্ধ\n"
+            "▶️ /sms_start — SMS চেকার চালু\n"
+            "⏹ /sms_stop  — SMS চেকার বন্ধ\n"
             "📊 /status — অবস্থা দেখুন\n"
+            "❓ /help — কমান্ড লিস্ট\n"
             "━━━━━━━━━━━━━━━"
         )
 
     return users
 
+
 def handle_sms_start(chat_id, user_id, users):
+    """
+    /sms_start কমান্ড:
+    - Admin → সরাসরি workflow চালু
+    - Approved user → workflow চালু
+    - অন্যরা → উপযুক্ত বার্তা
+    """
     uid = str(user_id)
     is_admin = uid == str(ADMIN_ID)
 
-    # Admin হলেও check করো SECRET এ credential আছে কিনা
-    if is_admin:
-        # Admin এর জন্য approved ইউজার আছে কিনা দেখো
-        approved_count = sum(1 for u in users.values() if u.get("status") == "approved" and u.get("sms_on", False))
-        if approved_count == 0:
-            send_message(chat_id,
-                "⚠️ <b>কোনো approved ইউজার নেই!</b>\n"
-                "━━━━━━━━━━━━━━━\n"
-                "SMS চেকার চালু করতে আগে\n"
-                "কমপক্ষে একজন ইউজার approve করুন।"
-            )
-            return users
-
-    if not is_admin and (uid not in users or users[uid]["status"] != "approved"):
-        if uid not in users or users[uid].get("status") == "new":
+    if not is_admin:
+        if uid not in users:
             markup = {"inline_keyboard": [[{"text": "🔗 একাউন্ট যোগ করুন", "callback_data": "link_account"}]]}
             send_message(chat_id, "⚠️ আগে একাউন্ট যোগ করুন।", markup)
-        elif users[uid].get("status") == "pending":
+            return users
+
+        status = users[uid].get("status", "new")
+        if status == "new":
+            markup = {"inline_keyboard": [[{"text": "🔗 একাউন্ট যোগ করুন", "callback_data": "link_account"}]]}
+            send_message(chat_id, "⚠️ আগে LAMIX একাউন্ট যোগ করুন।", markup)
+            return users
+        elif status == "pending":
             send_message(chat_id, "⏳ আপনার একাউন্ট এখনো অনুমোদনের অপেক্ষায়।")
-        elif users[uid].get("status") == "banned":
+            return users
+        elif status == "banned":
             send_message(chat_id, "🚫 আপনার একাউন্ট ব্যান করা হয়েছে।")
-        return users
+            return users
 
     send_message(chat_id, "⏳ SMS চেকার চালু করছি...")
     if trigger_workflow(SMS_WORKFLOW):
@@ -273,19 +301,26 @@ def handle_sms_start(chat_id, user_id, users):
             "⏱ চলবে: ১৯৫ মিনিট\n"
             "🔄 চেক হবে: প্রতি ১ সেকেন্ডে\n"
             "━━━━━━━━━━━━━━━\n"
-            "বন্ধ করতে /stop দিন।"
+            "বন্ধ করতে /sms_stop দিন।"
         )
     else:
         send_message(chat_id, "❌ চালু করা যায়নি। একটু পরে আবার চেষ্টা করুন।")
     return users
 
+
 def handle_sms_stop(chat_id, user_id, users):
+    """
+    /sms_stop কমান্ড:
+    - Admin → সরাসরি বন্ধ
+    - Approved user → বন্ধ
+    """
     uid = str(user_id)
     is_admin = uid == str(ADMIN_ID)
 
-    if not is_admin and (uid not in users or users[uid]["status"] != "approved"):
-        send_message(chat_id, "⚠️ আপনার একাউন্ট approved নয়।")
-        return users
+    if not is_admin:
+        if uid not in users or users[uid].get("status") != "approved":
+            send_message(chat_id, "⚠️ আপনার একাউন্ট approved নয়।")
+            return users
 
     status, run_id = get_workflow_status(SMS_WORKFLOW)
     if status != "in_progress":
@@ -301,8 +336,17 @@ def handle_sms_stop(chat_id, user_id, users):
         send_message(chat_id, "❌ বন্ধ করা যায়নি।")
     return users
 
+
 def handle_status(chat_id, user_id, users):
     uid = str(user_id)
+    is_admin = uid == str(ADMIN_ID)
+
+    # Non-admin: approved কিনা চেক
+    if not is_admin:
+        if uid not in users or users[uid].get("status") != "approved":
+            send_message(chat_id, "⚠️ আপনার একাউন্ট approved নয়।")
+            return users
+
     status, _ = get_workflow_status(SMS_WORKFLOW)
 
     if status == "in_progress":
@@ -320,6 +364,7 @@ def handle_status(chat_id, user_id, users):
     )
     return users
 
+
 def handle_users_list(chat_id, users):
     if not users:
         send_message(chat_id, "📋 কোনো ইউজার নেই।")
@@ -330,26 +375,34 @@ def handle_users_list(chat_id, users):
         status_icon = {"approved": "✅", "pending": "⏳", "banned": "🚫", "new": "🆕"}.get(u["status"], "❓")
         sms_icon = "🟢" if u.get("sms_on") else "🔴"
         text += (
-            f"{status_icon} @{u.get('tg_username','N/A')}\n"
-            f"   LAMIX: {u.get('lamix_username','N/A')} | SMS: {sms_icon}\n"
+            f"{status_icon} @{u.get('tg_username', 'N/A')}\n"
+            f"   LAMIX: {u.get('lamix_username', 'N/A')} | SMS: {sms_icon}\n"
             f"   ID: <code>{uid}</code>\n\n"
         )
     send_message(chat_id, text)
 
 # ── Callback Handler ──────────────────────────────────────────────────────────
 def handle_callback(callback, users):
-    data       = callback["data"]
-    cb_id      = callback["id"]
-    from_id    = str(callback["from"]["id"])
-    chat_id    = callback["message"]["chat"]["id"]
+    data    = callback["data"]
+    cb_id   = callback["id"]
+    from_id = str(callback["from"]["id"])
+    chat_id = callback["message"]["chat"]["id"]
 
     # ইউজার একাউন্ট লিংক শুরু করতে চাইছে
     if data == "link_account":
         answer_callback(cb_id)
         uid = from_id
-        if uid in users:
-            users[uid]["step"] = "await_username"
-            save_users(users)
+        if uid not in users:
+            username = callback["from"].get("username", str(from_id))
+            users[uid] = {
+                "tg_username": username,
+                "status": "new",
+                "lamix_username": "",
+                "sms_on": False,
+                "step": ""
+            }
+        users[uid]["step"] = "await_username"
+        save_users(users)
         send_message(chat_id,
             "🔑 <b>একাউন্ট যোগ করুন</b>\n"
             "━━━━━━━━━━━━━━━\n"
@@ -362,7 +415,12 @@ def handle_callback(callback, users):
         answer_callback(cb_id, "⚠️ শুধু Admin এই কাজ করতে পারবেন।")
         return users
 
-    action, target_id = data.split("|")
+    parts = data.split("|")
+    if len(parts) != 2:
+        answer_callback(cb_id, "❌ অজানা action।")
+        return users
+
+    action, target_id = parts
 
     if target_id not in users:
         answer_callback(cb_id, "ইউজার পাওয়া যায়নি।")
@@ -372,18 +430,18 @@ def handle_callback(callback, users):
         users[target_id]["status"] = "approved"
         save_users(users)
         answer_callback(cb_id, "✅ Approved!")
-        send_message(target_id,
+        send_message(int(target_id),
             "🎉 <b>আপনার একাউন্ট অনুমোদিত হয়েছে!</b>\n"
             "━━━━━━━━━━━━━━━\n"
             "এখন আপনি সব কমান্ড ব্যবহার করতে পারবেন।\n"
-            "SMS চেকার চালু করতে /start দিন।"
+            "SMS চেকার চালু করতে /sms_start দিন।"
         )
 
     elif action == "ban":
         users[target_id]["status"] = "banned"
         save_users(users)
         answer_callback(cb_id, "🚫 Banned!")
-        send_message(target_id,
+        send_message(int(target_id),
             "🚫 <b>আপনার একাউন্ট ব্যান করা হয়েছে।</b>"
         )
 
@@ -409,6 +467,7 @@ def handle_step(chat_id, user_id, text, users):
         lamix_username = users[uid].get("lamix_username", "")
         lamix_password = text.strip()
 
+        # আগে step ও status আপডেট করো
         users[uid]["step"] = ""
         users[uid]["status"] = "pending"
         save_users(users)
@@ -418,7 +477,6 @@ def handle_step(chat_id, user_id, text, users):
             "একটু অপেক্ষা করুন।"
         )
 
-        # Verify workflow trigger করো
         triggered = trigger_workflow(VERIFY_WORKFLOW, {
             "user_id": uid,
             "lamix_username": lamix_username,
@@ -444,7 +502,7 @@ def handle_step(chat_id, user_id, text, users):
 
     return users
 
-# ── Admin Commands ────────────────────────────────────────────────────────────
+# ── Admin Text Commands ────────────────────────────────────────────────────────
 def handle_admin_command(chat_id, text, users):
     parts = text.strip().split()
     cmd = parts[0].lower()
@@ -457,10 +515,10 @@ def handle_admin_command(chat_id, text, users):
                 users[uid]["status"] = "approved"
                 save_users(users)
                 send_message(chat_id, f"✅ @{target_username} কে approve করা হয়েছে।")
-                send_message(uid,
+                send_message(int(uid),
                     "🎉 <b>আপনার একাউন্ট অনুমোদিত হয়েছে!</b>\n"
                     "━━━━━━━━━━━━━━━\n"
-                    "SMS চেকার চালু করতে /start দিন।"
+                    "SMS চেকার চালু করতে /sms_start দিন।"
                 )
                 found = True
                 break
@@ -475,7 +533,7 @@ def handle_admin_command(chat_id, text, users):
                 users[uid]["status"] = "banned"
                 save_users(users)
                 send_message(chat_id, f"🚫 @{target_username} কে ban করা হয়েছে।")
-                send_message(uid, "🚫 <b>আপনার একাউন্ট ব্যান করা হয়েছে।</b>")
+                send_message(int(uid), "🚫 <b>আপনার একাউন্ট ব্যান করা হয়েছে।</b>")
                 found = True
                 break
         if not found:
@@ -499,7 +557,7 @@ def handle_admin_command(chat_id, text, users):
 
     return users
 
-# ── Main ──────────────────────────────────────────────────────────────────────
+# ── Main Loop ─────────────────────────────────────────────────────────────────
 def main():
     global OFFSET
     start_time = time.time()
@@ -520,7 +578,7 @@ def main():
         for update in updates:
             OFFSET = update["update_id"] + 1
 
-            # Callback (button press)
+            # ── Callback (button press) ──
             if "callback_query" in update:
                 cb = update["callback_query"]
                 users = handle_callback(cb, users)
@@ -538,58 +596,48 @@ def main():
             if not text:
                 continue
 
-            uid = str(user_id)
+            uid      = str(user_id)
             is_admin = uid == str(ADMIN_ID)
 
-            # Admin commands
-            if is_admin and text.startswith("/") and any(
+            # ── Admin text commands ──
+            if is_admin and any(
                 text.lower().startswith(c) for c in ["/approve", "/ban", "/pending", "/users"]
             ):
                 users = handle_admin_command(chat_id, text, users)
                 continue
 
-            # Step চলছে কিনা
+            # ── Step চলছে কিনা (username/password input) ──
             if uid in users and users[uid].get("step", "") in ["await_username", "await_password"]:
                 if not text.startswith("/"):
                     users = handle_step(chat_id, user_id, text, users)
                     continue
 
-            # Commands
+            # ── Commands ──
             if text == "/start":
                 users = handle_start(chat_id, user_id, username, users)
+
             elif text == "/sms_start":
                 users = handle_sms_start(chat_id, user_id, users)
-            elif text == "/stop":
+
+            elif text in ("/sms_stop", "/stop"):
                 users = handle_sms_stop(chat_id, user_id, users)
+
             elif text == "/status":
                 users = handle_status(chat_id, user_id, users)
+
             elif text == "/help":
-                if uid == str(ADMIN_ID):
-                    send_message(chat_id,
-                        "👑 <b>Admin কমান্ড লিস্ট</b>\n"
-                        "━━━━━━━━━━━━━━━\n\n"
-                        "▶️ /start — SMS চেকার শুরু\n"
-                        "⏹ /stop — SMS চেকার বন্ধ\n"
-                        "📊 /status — বর্তমান অবস্থা\n"
-                        "🔄 /restart — পুনরায় শুরু\n\n"
-                        "━━━━━━━━━━━━━━━\n"
-                        "👥 /users — সব ইউজার লিস্ট\n"
-                        "✅ /approve @username\n"
-                        "🚫 /ban @username\n"
-                        "⏳ /pending @username\n"
-                        "━━━━━━━━━━━━━━━"
-                    )
+                if is_admin:
+                    send_message(chat_id, ADMIN_HELP_TEXT)
                 else:
                     send_message(chat_id, HELP_TEXT)
-            elif text == "/sms_start":
-                users = handle_sms_start(chat_id, user_id, users)
-            elif text == "/sms_stop":
-                users = handle_sms_stop(chat_id, user_id, users)
+
             else:
-                if uid in users and users[uid]["status"] == "approved":
+                # Approved ইউজার অজানা কমান্ড দিলে
+                if is_admin or (uid in users and users[uid].get("status") == "approved"):
                     send_message(chat_id, "⚠️ অপরিচিত কমান্ড। /help দেখুন।")
 
         time.sleep(2)
+
 
 if __name__ == "__main__":
     main()
