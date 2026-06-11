@@ -1,0 +1,44 @@
+name: Verify User
+
+on:
+  workflow_dispatch:
+    inputs:
+      user_id:
+        description: 'Telegram User ID'
+        required: true
+      lamix_username:
+        description: 'LAMIX Username'
+        required: true
+      lamix_password:
+        description: 'LAMIX Password'
+        required: true
+
+jobs:
+  verify-user:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GH_PAT_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4
+
+      - name: Run Verify
+        env:
+          TELEGRAM_TOKEN:     ${{ secrets.TELEGRAM_TOKEN }}
+          ADMIN_CHAT_ID:      ${{ secrets.ADMIN_CHAT_ID }}
+          LAMIX_URL:          ${{ secrets.LAMIX_URL }}
+          INPUT_USER_ID:      ${{ github.event.inputs.user_id }}
+          INPUT_LAMIX_USERNAME: ${{ github.event.inputs.lamix_username }}
+          INPUT_LAMIX_PASSWORD: ${{ github.event.inputs.lamix_password }}
+        run: python verify.py
+        
