@@ -309,15 +309,34 @@ def main():
     with open(USERS_FILE) as f:
         users = json.load(f)
 
-    # GitHub Secrets থেকে credential যোগ করো
+    # GitHub Secrets থেকে credential লোড করো (username::password::tg_id ফরম্যাটে)
     for i in range(1, 51):
-        cred = os.environ.get(f"USER{i}_CRED", "")
-        uid  = os.environ.get(f"USER{i}_ID", "")
-        if cred and uid and "::" in cred:
-            uname, passwd = cred.split("::", 1)
-            if uid in users:
-                users[uid]["lamix_username"] = uname
-                users[uid]["lamix_password"] = passwd
+        secret_value = os.environ.get(f"USER{i}", "")
+        
+        if secret_value and "::" in secret_value:
+            try:
+                parts = secret_value.split("::")
+                if len(parts) >= 3:
+                    username = parts[0].strip()
+                    password = parts[1].strip()
+                    tg_id = parts[2].strip()
+                    
+                    # tg_id কে key হিসেবে ব্যবহার করুন
+                    if tg_id in users:
+                        users[tg_id]["lamix_username"] = username
+                        users[tg_id]["lamix_password"] = password
+                    else:
+                        # যদি tg_id users.json এ না থাকে, নতুন entry তৈরি করুন
+                        users[tg_id] = {
+                            "tg_id": tg_id,
+                            "lamix_username": username,
+                            "lamix_password": password,
+                            "status": "approved",
+                            "sms_on": True
+                        }
+                    print(f"✅ USER{i} লোড সম্পন্ন: {username}")
+            except Exception as e:
+                print(f"❌ USER{i} লোডে error: {e}")
 
     # Approved ইউজার যাদের sms_on = True তাদের thread চালাও
     all_seen      = load_all_seen()
