@@ -519,7 +519,7 @@ def main():
             # Commands
             if text == "/start":
                 users = handle_start(chat_id, user_id, username, users)
-            elif text in ["/sms_start", "/start"] and is_admin:
+            elif text == "/sms_start":
                 users = handle_sms_start(chat_id, user_id, users)
             elif text == "/stop":
                 users = handle_sms_stop(chat_id, user_id, users)
