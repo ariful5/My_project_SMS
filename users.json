@@ -4,6 +4,6 @@
     "status": "new",
     "lamix_username": "Napaabc",
     "sms_on": false,
-    "step": "await_password"
+    "step": "verifying"
   }
 }
