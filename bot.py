@@ -526,7 +526,23 @@ def main():
             elif text == "/status":
                 users = handle_status(chat_id, user_id, users)
             elif text == "/help":
-                send_message(chat_id, HELP_TEXT)
+                if uid == str(ADMIN_ID):
+                    send_message(chat_id,
+                        "👑 <b>Admin কমান্ড লিস্ট</b>\n"
+                        "━━━━━━━━━━━━━━━\n\n"
+                        "▶️ /start — SMS চেকার শুরু\n"
+                        "⏹ /stop — SMS চেকার বন্ধ\n"
+                        "📊 /status — বর্তমান অবস্থা\n"
+                        "🔄 /restart — পুনরায় শুরু\n\n"
+                        "━━━━━━━━━━━━━━━\n"
+                        "👥 /users — সব ইউজার লিস্ট\n"
+                        "✅ /approve @username\n"
+                        "🚫 /ban @username\n"
+                        "⏳ /pending @username\n"
+                        "━━━━━━━━━━━━━━━"
+                    )
+                else:
+                    send_message(chat_id, HELP_TEXT)
             elif text == "/sms_start":
                 users = handle_sms_start(chat_id, user_id, users)
             elif text == "/sms_stop":
