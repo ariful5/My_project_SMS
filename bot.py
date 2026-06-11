@@ -183,6 +183,47 @@ def notify_admin_new_user(tg_id, tg_username, lamix_username, lamix_password):
     }
     send_message(ADMIN_ID, text, markup)
 
+# ── Format Message Handler (Admin Only) ──────────────────────────────────────
+def handle_format_message(chat_id, user_id, text, users):
+    """
+    Input format (3 lines):
+    @username
+    password1
+    password2
+
+    Output: USER1 = password1::password2::telegram_id
+    """
+    if str(user_id) != str(ADMIN_ID):
+        return False
+
+    lines = [l.strip() for l in text.strip().splitlines() if l.strip()]
+    if len(lines) != 3:
+        return False
+    if not lines[0].startswith("@"):
+        return False
+
+    target_username = lines[0][1:].lower()  # @ বাদ দিয়ে
+    pass1 = lines[1]
+    pass2 = lines[2]
+
+    # users.json থেকে Telegram ID খোঁজো
+    target_id = None
+    for uid_key, u in users.items():
+        if u.get("tg_username", "").lower() == target_username:
+            target_id = uid_key
+            break
+
+    if not target_id:
+        send_message(chat_id,
+            f"❌ @{target_username} এর ID পাওয়া যায়নি।\n"
+            f"সে আগে বটে /start দিয়েছে কি?"
+        )
+        return True
+
+    result = f"USER1 = {pass1}::{pass2}::{target_id}"
+    send_message(chat_id, f"<code>{result}</code>")
+    return True
+
 # ── Command Handlers ──────────────────────────────────────────────────────────
 def handle_start(chat_id, user_id, username, users):
     uid = str(user_id)
@@ -441,7 +482,6 @@ def handle_step(chat_id, user_id, text, users):
         lamix_username = users[uid].get("lamix_username", "")
         lamix_password = text.strip()
 
-        # ── সাথে সাথে step বদলে দাও যাতে duplicate না হয় ──
         users[uid]["step"] = "verifying"
         save_users(users)
 
@@ -457,7 +497,6 @@ def handle_step(chat_id, user_id, text, users):
         })
 
         if triggered:
-            # ── শুধু একবারই admin-কে notify করা হবে ──
             notify_admin_new_user(
                 uid,
                 users[uid].get("tg_username", ""),
@@ -596,6 +635,10 @@ def main():
                 text.lower().startswith(c) for c in ["/approve", "/ban", "/pending", "/new", "/users"]
             ):
                 users = handle_admin_command(chat_id, text, users)
+                continue
+
+            # ── Format message handler (Admin only, no command needed) ──
+            if is_admin and handle_format_message(chat_id, user_id, text, users):
                 continue
 
             # ── Step চলছে কিনা — command হলে skip ──
