@@ -4,7 +4,7 @@
     "status": "new",
     "lamix_username": "",
     "sms_on": true,
-    "step": "",
+    "step": "await_username",
     "sms_workflow": ""
   },
   "7198003817": {
