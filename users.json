@@ -13,7 +13,7 @@
     "lamix_username": "",
     "sms_on": false,
     "sms_workflow": "",
-    "step": ""
+    "step": "await_username"
   },
   "7252602282": {
     "tg_username": "Dogs4t7",
