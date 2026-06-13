@@ -13,5 +13,13 @@
     "sms_on": false,
     "sms_workflow": "",
     "step": ""
+  },
+  "7252602282": {
+    "tg_username": "Dogs4t7",
+    "status": "new",
+    "lamix_username": "",
+    "sms_on": false,
+    "sms_workflow": "",
+    "step": ""
   }
 }
