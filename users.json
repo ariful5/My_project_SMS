@@ -28,6 +28,6 @@
     "lamix_username": "Kop",
     "sms_on": false,
     "sms_workflow": "",
-    "step": "await_password"
+    "step": "verifying"
   }
 }
