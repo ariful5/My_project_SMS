@@ -27,7 +27,7 @@
     "tg_username": "Napa_Ex",
     "status": "approved",
     "lamix_username": "Kop",
-    "sms_on": true,
+    "sms_on": false,
     "sms_workflow": "U1.yml",
     "step": ""
   }
