@@ -28,7 +28,7 @@
     "status": "approved",
     "lamix_username": "Kop",
     "sms_on": false,
-    "sms_workflow": "",
+    "sms_workflow": "U1.yml",
     "step": ""
   }
 }
