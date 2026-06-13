@@ -5,5 +5,13 @@
     "lamix_username": "Napaabc",
     "sms_on": true,
     "step": "verifying"
+  },
+  "7198003817": {
+    "tg_username": "S_HaRaL",
+    "status": "new",
+    "lamix_username": "",
+    "sms_on": false,
+    "sms_workflow": "",
+    "step": ""
   }
 }
