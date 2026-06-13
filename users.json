@@ -1,11 +1,11 @@
 {
   "6993154309": {
     "tg_username": "Shakil_Is",
-    "status": "pending",
+    "status": "approved",
     "lamix_username": "Hassna",
     "sms_on": true,
     "step": "",
-    "sms_workflow": ""
+    "sms_workflow": "U2.yml"
   },
   "7198003817": {
     "tg_username": "S_HaRaL",
