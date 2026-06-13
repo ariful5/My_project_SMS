@@ -10,10 +10,10 @@
   "7198003817": {
     "tg_username": "S_HaRaL",
     "status": "new",
-    "lamix_username": "",
+    "lamix_username": "Saim",
     "sms_on": false,
     "sms_workflow": "",
-    "step": "await_username"
+    "step": "await_password"
   },
   "7252602282": {
     "tg_username": "Dogs4t7",
