@@ -109,7 +109,9 @@ def get_user_guard(uid, users, chat_id):
             "⏳ <b>অনুমোদনের অপেক্ষায়</b>\n"
             "━━━━━━━━━━━━━━━\n"
             "আপনার একাউন্ট যাচাই হয়েছে।\n"
-            "Admin অনুমোদন করলেই শুরু করতে পারবেন।"
+            "Admin অনুমোদন করলেই শুরু করতে পারবেন।\n"
+            "━━━━━━━━━━━━━━━\n"
+            "⏳ অনুগ্রহ করে অপেক্ষা করুন।"
         )
         return True
     elif status == "banned":
@@ -653,18 +655,21 @@ def handle_step(chat_id, user_id, text, users):
     step = users[uid].get("step", "")
 
     if step == "await_username":
-        users[uid]["lamix_username"] = text.strip()
+        # মেমোরিতে রাখি, users.json এ সেভ করি না
+        users[uid]["_temp_lamix_username"] = text.strip()
         users[uid]["step"] = "await_password"
+        save_users(users)  # শুধু step আপডেট হবে, lamix_username যাবে না
         send_message(chat_id,
             "🔒 এখন আপনার <b>LAMIX Password</b> লিখুন:"
         )
 
     elif step == "await_password":
-        lamix_username = users[uid].get("lamix_username", "")
+        # temp username মেমোরি থেকে নাও (users.json এ নেই)
+        lamix_username = users[uid].pop("_temp_lamix_username", "")
         lamix_password = text.strip()
 
-        # credentials মেমোরিতে রাখি, কিন্তু users dict-এ সেভ করি না
-        users[uid]["step"] = "verifying_temp"
+        users[uid]["step"] = ""
+        save_users(users)  # শুধু step clear হবে, credentials যাবে না
 
         send_message(chat_id,
             "⏳ <b>একাউন্ট যাচাই করা হচ্ছে...</b>\n"
@@ -677,40 +682,14 @@ def handle_step(chat_id, user_id, text, users):
             "lamix_password": lamix_password
         })
 
-        # username মেমোরি থেকে সরিয়ে দাও
-        users[uid].pop("lamix_username", None)
-
-        if triggered:
-            if is_admin:
-                users[uid]["status"] = "approved"
-                users[uid]["verify_status"] = "done"
-                users[uid]["step"] = ""
-                save_users(users)
-                send_message(chat_id,
-                    "🎉 <b>Admin একাউন্ট সেটআপ সম্পন্ন!</b>\n"
-                    "━━━━━━━━━━━━━━━\n"
-                    f"🔑 LAMIX User: <code>{lamix_username}</code>\n"
-                    "✅ আপনি এখন approved!\n"
-                    "━━━━━━━━━━━━━━━\n"
-                    "⚠️ এখন workflow সেট করুন:\n"
-                    f"/setwf @{users[uid].get('tg_username', '')} sms-check.yml\n"
-                    "━━━━━━━━━━━━━━━\n"
-                    "তারপর /sms_start দিয়ে শুরু করুন।"
-                )
-            else:
-                users[uid]["status"] = "new"
-                users[uid]["step"] = ""
-                save_users(users)
-        else:
+        if not triggered:
             send_message(chat_id,
-                "❌ <b>একাউন্ট যাচাই ব্যর্থ হয়েছে!</b>\n"
+                "❌ <b>যাচাই শুরু করা যায়নি!</b>\n"
                 "━━━━━━━━━━━━━━━\n"
-                "Username বা Password ভুল হতে পারে।\n"
-                "আবার চেষ্টা করতে /start দিন।"
+                "একটু পরে আবার চেষ্টা করুন। /start দিন।"
             )
             users[uid]["status"] = "new"
             users[uid]["step"] = ""
-            users[uid]["verify_status"] = ""
             save_users(users)
 
     return users
