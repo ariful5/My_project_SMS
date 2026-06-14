@@ -1,0 +1,43 @@
+name: SMS Checker - U1
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-sms-checker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 210
+
+    steps:
+      - name: Wait for JSON update
+        run: sleep 5
+
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GH_PAT_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests beautifulsoup4
+
+      - name: Debug JSON
+        run: |
+          echo "=== users.json content ==="
+          cat users.json
+          echo "=========================="
+
+      - name: Run SMS Checker
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          ADMIN_CHAT_ID:  ${{ secrets.ADMIN_CHAT_ID }}
+          GH_PAT_TOKEN:   ${{ secrets.GH_PAT_TOKEN }}
+          GH_REPO:        ${{ secrets.GH_REPO }}
+          LAMIX_URL:      ${{ secrets.LAMIX_URL }}
+          USER1:          ${{ secrets.U1_CRED }}
+          WORKFLOW_NAME:  "U1.yml"
+        run: python check_sms.py
