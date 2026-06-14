@@ -1,4 +1,4 @@
-name: SMS Checker - U1
+name: ck
 
 on:
   workflow_dispatch:
