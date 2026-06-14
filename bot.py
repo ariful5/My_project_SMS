@@ -50,6 +50,7 @@ ADMIN_HELP_TEXT = (
     "📊 /status — বর্তমান অবস্থা\n"
     "━━━━━━━━━━━━━━━\n"
     "👥 /users — সব ইউজার লিস্ট\n"
+    "🔍 /user @username — ইউজারের পূর্ণ তথ্য\n"
     "✅ /approve @username sms-userX.yml\n"
     "🚫 /ban @username\n"
     "⏳ /pending @username\n"
@@ -61,6 +62,7 @@ ADMIN_PANEL_TEXT = (
     "👑 <b>Admin Panel</b>\n"
     "━━━━━━━━━━━━━━━\n"
     "👥 /users — সব ইউজার লিস্ট\n"
+    "🔍 /user @username — ইউজারের পূর্ণ তথ্য\n"
     "✅ /approve @username sms-userX.yml\n"
     "🚫 /ban @username\n"
     "⏳ /pending @username\n"
@@ -72,10 +74,22 @@ ADMIN_PANEL_TEXT = (
     "━━━━━━━━━━━━━━━"
 )
 
-# ── Telegram Bot Command Menu Setup ───────────────────────────────────────────
-# এই ফাংশনটি bot চালু হলে automatically Telegram-এর মেনুবারে
-# commands সেট করে দেয়। User ও Admin আলাদা আলাদা commands দেখবে।
+# ── Helpers ───────────────────────────────────────────────────────────────────
+def seconds_to_hms(seconds):
+    """সেকেন্ডকে ঘন্টা মিনিট সেকেন্ড ফরম্যাটে রূপান্তর করে।"""
+    h = seconds // 3600
+    m = (seconds % 3600) // 60
+    s = seconds % 60
+    parts = []
+    if h:
+        parts.append(f"{h} ঘন্টা")
+    if m:
+        parts.append(f"{m} মিনিট")
+    if s or not parts:
+        parts.append(f"{s} সেকেন্ড")
+    return " ".join(parts)
 
+# ── Telegram Bot Command Menu Setup ───────────────────────────────────────────
 USER_COMMANDS = [
     {"command": "start",     "description": "🏠 বট শুরু করুন / একাউন্ট যোগ করুন"},
     {"command": "sms_start", "description": "▶️ SMS চেকার চালু করুন — নতুন SMS আসলে নোটিফিকেশন পাবেন"},
@@ -91,28 +105,19 @@ ADMIN_COMMANDS = [
     {"command": "status",    "description": "📊 SMS চেকারের বর্তমান অবস্থা দেখুন"},
     {"command": "help",      "description": "❓ সব কমান্ডের তালিকা দেখুন"},
     {"command": "users",     "description": "👥 সব রেজিস্টার্ড ইউজারের তালিকা দেখুন"},
+    {"command": "user",      "description": "🔍 /user @username — ইউজারের পূর্ণ তথ্য দেখুন"},
     {"command": "approve",   "description": "✅ /approve @username sms-userX.yml — ইউজার অনুমোদন ও workflow সেট করুন"},
-    {"command": "ban",       "description": "🚫 /ban @username — ইউজারকে ব্যান করুন, সে আর বট ব্যবহার করতে পারবে না"},
+    {"command": "ban",       "description": "🚫 /ban @username — ইউজারকে ব্যান করুন"},
     {"command": "pending",   "description": "⏳ /pending @username — ইউজারকে pending অবস্থায় ফেরত পাঠান"},
     {"command": "setwf",     "description": "🔄 /setwf @username sms-userX.yml — ইউজারের GitHub workflow ফাইল সেট করুন"},
     {"command": "new",       "description": "🆕 /new @username — ইউজারকে রিসেট করুন, নতুন করে শুরু করতে পারবে"},
 ]
 
 def setup_bot_commands():
-    """
-    Bot চালু হলে এই ফাংশন দুটি কাজ করে:
-    1. সাধারণ user-দের জন্য default command menu সেট করে
-    2. Admin-এর জন্য আলাদা বিস্তারিত command menu সেট করে
-    Telegram-এ '/' চাপলে এই commands মেনুতে দেখা যাবে।
-    """
     base_url = f"https://api.telegram.org/bot{TG_TOKEN}"
-
-    # ── সব user-এর জন্য default commands সেট করো ──
     requests.post(f"{base_url}/setMyCommands", json={
         "commands": USER_COMMANDS
     }, timeout=10)
-
-    # ── শুধু Admin-এর জন্য আলাদা commands সেট করো ──
     requests.post(f"{base_url}/setMyCommands", json={
         "commands": ADMIN_COMMANDS,
         "scope": {
@@ -129,8 +134,22 @@ def load_users():
     return {}
 
 def save_users(users):
+    # ── users.json এ lamix_username এর বদলে verify_status থাকবে ──
+    # password কখনো সেভ হবে না। verified হলে "done" লেখা থাকবে।
+    # step field সেভ হবে না।
+    clean_users = {}
+    for uid, u in users.items():
+        entry = {
+            "tg_username": u.get("tg_username", ""),
+            "status": u.get("status", "new"),
+            "verify_status": u.get("verify_status", ""),  # "done" if verified
+            "sms_on": u.get("sms_on", False),
+            "sms_workflow": u.get("sms_workflow", ""),
+            # step ইচ্ছাকৃতভাবে বাদ — শুধু runtime এ থাকে
+        }
+        clean_users[uid] = entry
     with open(USERS_FILE, "w") as f:
-        json.dump(users, f, indent=2, ensure_ascii=False)
+        json.dump(clean_users, f, indent=2, ensure_ascii=False)
     push_file(USERS_FILE)
 
 def push_file(filename):
@@ -216,6 +235,10 @@ def cancel_workflow_run(run_id):
 
 # ── Admin Notification ────────────────────────────────────────────────────────
 def notify_admin_new_user(tg_id, tg_username, lamix_username, lamix_password):
+    """
+    শুধুমাত্র LAMIX credentials সঠিক হলে এই function call হবে।
+    ভুল credentials এর ক্ষেত্রে এটা call হবে না।
+    """
     text = (
         f"🆕 <b>নতুন ইউজার যাচাই সম্পন্ন!</b>\n"
         f"━━━━━━━━━━━━━━━\n"
@@ -272,14 +295,11 @@ def handle_start(chat_id, user_id, username, users):
     uid = str(user_id)
     is_admin = uid == str(ADMIN_ID)
 
-    # ── Admin-ও user-এর মতো credentials দেবে ──
-    # Admin যদি আগে থেকে approved না থাকে, তাহলে সে-ও
-    # LAMIX username/password দিয়ে নিজেকে setup করবে।
     if uid not in users:
         users[uid] = {
             "tg_username": username or "",
             "status": "new",
-            "lamix_username": "",
+            "verify_status": "",
             "sms_on": False,
             "sms_workflow": "",
             "step": ""
@@ -313,7 +333,6 @@ def handle_start(chat_id, user_id, username, users):
 
     status = users[uid].get("status", "new")
 
-    # ── Admin approved থাকলে admin panel দেখাও ──
     if is_admin and status == "approved":
         send_message(chat_id, ADMIN_PANEL_TEXT)
         return users
@@ -336,13 +355,12 @@ def handle_start(chat_id, user_id, username, users):
         )
     elif status == "pending":
         if is_admin:
-            # Admin pending মানে verify হয়ে গেছে, self-approve করো
             send_message(chat_id, "⏳ আপনার একাউন্ট verify হচ্ছে...")
         else:
             send_message(chat_id,
                 "⏳ <b>অনুমোদনের অপেক্ষায়</b>\n"
                 "━━━━━━━━━━━━━━━\n"
-                "আপনার একাউন্ট যাচাই হচ্ছে।\n"
+                "আপনার একাউন্ট যাচাই হয়েছে।\n"
                 "Admin অনুমোদন করলেই শুরু করতে পারবেন।"
             )
     elif status == "banned":
@@ -382,7 +400,7 @@ def handle_sms_start(chat_id, user_id, users):
     if not user_workflow:
         send_message(chat_id,
             "⚠️ <b>Workflow সেট করা হয়নি!</b>\n"
-            + ("নিজে /setwf দিয়ে সেট করুন।" if is_admin else "Admin কে জানান। তিনি /setwf দিয়ে সেট করবেন।")
+            + ("নিজে /setwf দিয়ে সেট করুন।" if is_admin else "Admin কে জানান। তিনি সেট করবেন।")
         )
         return users
 
@@ -391,11 +409,12 @@ def handle_sms_start(chat_id, user_id, users):
     if trigger_workflow(user_workflow):
         users[uid]["sms_on"] = True
         save_users(users)
+        # ── RUN_DURATION কে ঘন্টা মিনিট সেকেন্ডে দেখাও, workflow নাম লুকানো ──
+        duration_str = seconds_to_hms(RUN_DURATION)
         send_message(chat_id,
             "✅ <b>SMS চেকার চালু হয়েছে!</b>\n"
             "━━━━━━━━━━━━━━━\n"
-            f"📋 Workflow: {user_workflow}\n"
-            "⏱ চলবে: ১৯৫ মিনিট\n"
+            f"⏱ চলবে: {duration_str}\n"
             "🔄 চেক হবে: প্রতি ১ সেকেন্ডে\n"
             "━━━━━━━━━━━━━━━\n"
             "বন্ধ করতে /sms_stop দিন।"
@@ -435,6 +454,7 @@ def handle_status(chat_id, user_id, users):
         send_message(chat_id, "⚠️ আপনার একাউন্ট approved নয়।")
         return users
 
+    # ── Status এ workflow নাম দেখানো হবে না ──
     user_workflow = users[uid].get("sms_workflow", SMS_WORKFLOW)
     status, _ = get_workflow_status(user_workflow)
 
@@ -448,7 +468,6 @@ def handle_status(chat_id, user_id, users):
     send_message(chat_id,
         f"📊 <b>Status</b>\n"
         f"━━━━━━━━━━━━━━━\n"
-        f"📋 Workflow: {user_workflow}\n"
         f"📩 SMS চেকার: {sms_info}\n"
         f"━━━━━━━━━━━━━━━"
     )
@@ -464,14 +483,53 @@ def handle_users_list(chat_id, users):
     for uid, u in users.items():
         status_icon = {"approved": "✅", "pending": "⏳", "banned": "🚫", "new": "🆕"}.get(u["status"], "❓")
         sms_icon = "🟢" if u.get("sms_on") else "🔴"
-        wf = u.get("sms_workflow", "❌ সেট নেই")
+        # ── /users এ workflow নাম দেখানো হবে না ──
         text += (
             f"{status_icon} @{u.get('tg_username', 'N/A')}\n"
-            f"   LAMIX: {u.get('lamix_username', 'N/A')} | SMS: {sms_icon}\n"
-            f"   Workflow: {wf}\n"
+            f"   SMS: {sms_icon} | Verify: {u.get('verify_status', '❌')}\n"
             f"   ID: <code>{uid}</code>\n\n"
         )
     send_message(chat_id, text)
+
+
+def handle_user_detail(chat_id, target_username, users):
+    """
+    /user @username — Admin শুধুমাত্র এই কমান্ড দিয়ে
+    একজন ইউজারের সব তথ্য দেখতে পারবেন:
+    ID, LAMIX username, password (runtime এ থাকলে), workflow, SMS status।
+    """
+    target_username = target_username.replace("@", "").lower()
+    found = False
+    for uid, u in users.items():
+        if u.get("tg_username", "").lower() == target_username:
+            found = True
+            status_icon = {"approved": "✅", "pending": "⏳", "banned": "🚫", "new": "🆕"}.get(u.get("status", "new"), "❓")
+            sms_icon = "🟢 চালু" if u.get("sms_on") else "🔴 বন্ধ"
+            wf = u.get("sms_workflow", "") or "❌ সেট নেই"
+            lamix_user = u.get("lamix_username", "") or "❌ নেই"
+            lamix_pass = u.get("lamix_password", "") or "❌ নেই"
+            verify = u.get("verify_status", "") or "❌"
+
+            text = (
+                f"🔍 <b>ইউজার তথ্য</b>\n"
+                f"━━━━━━━━━━━━━━━\n"
+                f"👤 Telegram: @{u.get('tg_username', 'N/A')}\n"
+                f"🆔 ID: <code>{uid}</code>\n"
+                f"━━━━━━━━━━━━━━━\n"
+                f"🔑 LAMIX User: <code>{lamix_user}</code>\n"
+                f"🔒 Password: <code>{lamix_pass}</code>\n"
+                f"✔️ Verify: {verify}\n"
+                f"━━━━━━━━━━━━━━━\n"
+                f"📋 Workflow: <code>{wf}</code>\n"
+                f"📩 SMS: {sms_icon}\n"
+                f"{status_icon} Status: {u.get('status', 'new')}\n"
+                f"━━━━━━━━━━━━━━━"
+            )
+            send_message(chat_id, text)
+            break
+
+    if not found:
+        send_message(chat_id, f"❌ @{target_username} পাওয়া যায়নি।")
 
 # ── Callback Handler ──────────────────────────────────────────────────────────
 def handle_callback(callback, users):
@@ -488,7 +546,7 @@ def handle_callback(callback, users):
             users[uid] = {
                 "tg_username": username,
                 "status": "new",
-                "lamix_username": "",
+                "verify_status": "",
                 "sms_on": False,
                 "sms_workflow": "",
                 "step": ""
@@ -502,7 +560,6 @@ def handle_callback(callback, users):
         )
         return users
 
-    # ── Admin ছাড়া অন্য কেউ inline button চাপলে ──
     if from_id != str(ADMIN_ID):
         answer_callback(cb_id, "⚠️ শুধু Admin এই কাজ করতে পারবেন।")
         return users
@@ -551,7 +608,8 @@ def handle_step(chat_id, user_id, text, users):
     if step == "await_username":
         users[uid]["lamix_username"] = text.strip()
         users[uid]["step"] = "await_password"
-        save_users(users)
+        # ── username runtime এ রাখো, save করো না ──
+        # save_users এখানে লাগবে না; step পরিবর্তন runtime এই থাকুক
         send_message(chat_id,
             "🔒 এখন আপনার <b>LAMIX Password</b> লিখুন:"
         )
@@ -560,8 +618,9 @@ def handle_step(chat_id, user_id, text, users):
         lamix_username = users[uid].get("lamix_username", "")
         lamix_password = text.strip()
 
+        # ── password runtime এ রাখো, verification পরে verify workflow জানাবে ──
+        users[uid]["lamix_password"] = lamix_password
         users[uid]["step"] = "verifying"
-        save_users(users)
 
         send_message(chat_id,
             "⏳ <b>একাউন্ট যাচাই করা হচ্ছে...</b>\n"
@@ -576,11 +635,13 @@ def handle_step(chat_id, user_id, text, users):
 
         if triggered:
             if is_admin:
-                # ── Admin নিজেই নিজেকে self-approve করে ──
-                # verify workflow trigger হলে admin কে pending না রেখে
-                # সরাসরি approved করা হয়। Admin panel notify করা হয়।
+                # ── Admin self-approve: verify trigger হলেই approved ──
                 users[uid]["status"] = "approved"
+                users[uid]["verify_status"] = "done"
                 users[uid]["step"] = ""
+                # password সেভ করা হবে না
+                del users[uid]["lamix_password"]
+                users[uid]["lamix_username"] = ""
                 save_users(users)
                 send_message(chat_id,
                     "🎉 <b>Admin একাউন্ট সেটআপ সম্পন্ন!</b>\n"
@@ -594,30 +655,88 @@ def handle_step(chat_id, user_id, text, users):
                     "তারপর /sms_start দিয়ে শুরু করুন।"
                 )
             else:
-                notify_admin_new_user(
-                    uid,
-                    users[uid].get("tg_username", ""),
-                    lamix_username,
-                    lamix_password
-                )
-                users[uid]["status"] = "pending"
+                # ── Regular user: এখনই "যাচাই সম্পন্ন" দেখাবে না ──
+                # verify workflow শেষ হলে আলাদা endpoint বা webhook জানাবে।
+                # এখানে শুধু "যাচাই চলছে" দেখাই। Admin notification পরে যাবে।
+                # (verify.yml এর result এলে handle_verify_result call হবে)
+                users[uid]["status"] = "verifying"
                 users[uid]["step"] = ""
                 save_users(users)
                 send_message(chat_id,
-                    "✅ <b>যাচাই সম্পন্ন!</b>\n"
+                    "⏳ <b>যাচাই চলছে...</b>\n"
                     "━━━━━━━━━━━━━━━\n"
-                    "Admin অনুমোদন করলে SMS চেকার\n"
-                    "ব্যবহার করতে পারবেন।\n"
+                    "আপনার তথ্য যাচাই হচ্ছে।\n"
+                    "সঠিক হলে Admin এর কাছে\n"
+                    "অনুমোদনের জন্য পাঠানো হবে।\n"
                     "একটু অপেক্ষা করুন।"
                 )
         else:
+            # ── Workflow trigger ই হয়নি — সরাসরি error ──
             send_message(chat_id,
-                "❌ যাচাই করা যায়নি। আবার চেষ্টা করুন।\n"
-                "/start দিয়ে শুরু করুন।"
+                "❌ <b>একাউন্ট যাচাই ব্যর্থ হয়েছে!</b>\n"
+                "━━━━━━━━━━━━━━━\n"
+                "Username বা Password ভুল হতে পারে।\n"
+                "আবার চেষ্টা করতে /start দিন।"
             )
             users[uid]["status"] = "new"
             users[uid]["step"] = ""
+            if "lamix_password" in users[uid]:
+                del users[uid]["lamix_password"]
+            users[uid]["lamix_username"] = ""
             save_users(users)
+
+    return users
+
+
+def handle_verify_result(user_id, success, lamix_username, lamix_password, users):
+    """
+    verify.yml workflow শেষ হলে এই function call করতে হবে।
+    success=True  → Admin কে notify করো, user কে "অনুমোদনের অপেক্ষায়" বলো।
+    success=False → User কে error দেখাও, status=new করো। Admin কে কিছু পাঠাবে না।
+    """
+    uid = str(user_id)
+    if uid not in users:
+        return users
+
+    tg_username = users[uid].get("tg_username", "")
+
+    if success:
+        # ── শুধু সফল হলে admin notification ──
+        users[uid]["status"] = "pending"
+        users[uid]["verify_status"] = "done"
+        users[uid]["lamix_username"] = ""  # সেভ করবো না
+        if "lamix_password" in users[uid]:
+            del users[uid]["lamix_password"]
+        save_users(users)
+
+        # User কে সফল বার্তা
+        send_message(int(uid),
+            "✅ <b>যাচাই সম্পন্ন!</b>\n"
+            "━━━━━━━━━━━━━━━\n"
+            "Admin অনুমোদন করলে SMS চেকার\n"
+            "ব্যবহার করতে পারবেন।\n"
+            "একটু অপেক্ষা করুন।"
+        )
+
+        # Admin কে notify করো (শুধু সফল হলে)
+        notify_admin_new_user(uid, tg_username, lamix_username, lamix_password)
+
+    else:
+        # ── ব্যর্থ হলে শুধু user কে জানাও, admin কে না ──
+        users[uid]["status"] = "new"
+        users[uid]["step"] = ""
+        users[uid]["verify_status"] = ""
+        users[uid]["lamix_username"] = ""
+        if "lamix_password" in users[uid]:
+            del users[uid]["lamix_password"]
+        save_users(users)
+
+        send_message(int(uid),
+            "❌ <b>একাউন্ট যাচাই ব্যর্থ হয়েছে!</b>\n"
+            "━━━━━━━━━━━━━━━\n"
+            "Username বা Password ভুল হতে পারে।\n"
+            "আবার চেষ্টা করতে /start দিন।"
+        )
 
     return users
 
@@ -636,7 +755,7 @@ def handle_admin_command(chat_id, text, users):
                 if workflow_name:
                     users[uid]["sms_workflow"] = workflow_name
                 save_users(users)
-                wf_msg = f"\n📋 Workflow: {workflow_name}" if workflow_name else "\n⚠️ Workflow সেট হয়নি! /setwf দিয়ে সেট করুন।"
+                wf_msg = f"\n📋 Workflow সেট হয়েছে।" if workflow_name else "\n⚠️ Workflow সেট হয়নি! /setwf দিয়ে সেট করুন।"
                 send_message(chat_id, f"✅ @{target_username} কে approve করা হয়েছে।{wf_msg}")
                 send_message(int(uid),
                     "🎉 <b>আপনার একাউন্ট অনুমোদিত হয়েছে!</b>\n"
@@ -656,9 +775,9 @@ def handle_admin_command(chat_id, text, users):
             if u.get("tg_username", "").lower() == target_username:
                 users[uid]["sms_workflow"] = workflow_name
                 save_users(users)
+                # ── workflow নাম শুধু admin কে confirm এ দেখাও ──
                 send_message(chat_id,
-                    f"✅ @{target_username} এর workflow সেট হয়েছে:\n"
-                    f"📋 {workflow_name}"
+                    f"✅ @{target_username} এর workflow সেট হয়েছে।"
                 )
                 found = True
                 break
@@ -695,6 +814,10 @@ def handle_admin_command(chat_id, text, users):
     elif cmd == "/users":
         handle_users_list(chat_id, users)
 
+    elif cmd == "/user" and len(parts) > 1:
+        # ── /user @username — ইউজারের পূর্ণ তথ্য Admin দেখবেন ──
+        handle_user_detail(chat_id, parts[1], users)
+
     elif cmd == "/new" and len(parts) > 1:
         target_username = parts[1].replace("@", "").lower()
         found = False
@@ -702,8 +825,11 @@ def handle_admin_command(chat_id, text, users):
             if u.get("tg_username", "").lower() == target_username:
                 users[uid]["status"] = "new"
                 users[uid]["lamix_username"] = ""
+                users[uid]["verify_status"] = ""
                 users[uid]["sms_workflow"] = ""
                 users[uid]["step"] = ""
+                if "lamix_password" in users[uid]:
+                    del users[uid]["lamix_password"]
                 save_users(users)
                 send_message(chat_id, f"🆕 @{target_username} কে new user করা হয়েছে।")
                 send_message(int(uid),
@@ -723,7 +849,6 @@ def main():
     start_time = time.time()
     users = load_users()
 
-    # ── Bot চালু হলে সাথে সাথে Telegram menu commands সেট হয় ──
     setup_bot_commands()
 
     send_message(ADMIN_ID,
@@ -762,7 +887,7 @@ def main():
             is_admin = uid == str(ADMIN_ID)
 
             if is_admin and any(
-                text.lower().startswith(c) for c in ["/approve", "/ban", "/pending", "/new", "/users", "/setwf"]
+                text.lower().startswith(c) for c in ["/approve", "/ban", "/pending", "/new", "/users", "/setwf", "/user"]
             ):
                 users = handle_admin_command(chat_id, text, users)
                 continue
