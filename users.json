@@ -4,9 +4,9 @@
     "status": "approved",
     "verify_status": "",
     "sms_on": false,
-    "sms_workflow": "U1_yml",
+    "sms_workflow": "U1.yml",
     "sms_start_time": "",
-    "seen_file": "U1_yml",
+    "seen_file": "U1.json",
     "step": ""
   },
   "6993154309": {
