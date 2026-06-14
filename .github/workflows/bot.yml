@@ -3,6 +3,10 @@ name: Telegram Bot
 on:
   workflow_dispatch:
 
+concurrency:
+  group: Telegram-Bot
+  cancel-in-progress: true
+
 jobs:
   run-bot:
     runs-on: ubuntu-latest
@@ -30,4 +34,3 @@ jobs:
           GH_REPO:        ${{ secrets.GH_REPO }}
           LAMIX_URL:      ${{ secrets.LAMIX_URL }}
         run: python bot.py
-        
