@@ -104,7 +104,21 @@ def get_user_guard(uid, users, chat_id):
             markup
         )
         return True
-    elif status in ("pending", "verifying"):
+    elif status == "verifying":
+        # ── verify চলছে কিন্তু result আসেনি, new করে দাও ──
+        users[uid]["status"] = "new"
+        users[uid]["step"] = ""
+        users[uid]["verify_status"] = ""
+        save_users(users)
+        markup = {"inline_keyboard": [[{"text": "🔗 একাউন্ট যোগ করুন", "callback_data": "link_account"}]]}
+        send_message(chat_id,
+            "⚠️ <b>একাউন্ট যাচাই সম্পন্ন হয়নি!</b>\n"
+            "━━━━━━━━━━━━━━━\n"
+            "আবার চেষ্টা করতে নিচের বাটনে চাপুন 👇",
+            markup
+        )
+        return True
+    elif status == "pending":
         send_message(chat_id,
             "⏳ <b>অনুমোদনের অপেক্ষায়</b>\n"
             "━━━━━━━━━━━━━━━\n"
