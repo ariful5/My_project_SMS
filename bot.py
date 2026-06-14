@@ -189,6 +189,7 @@ def save_users(users):
             "sms_workflow": u.get("sms_workflow", ""),
             "sms_start_time": u.get("sms_start_time", ""),
             "seen_file": u.get("seen_file", ""),
+            "step": u.get("step", ""),
         }
         clean_users[uid] = entry
     with open(USERS_FILE, "w") as f:
@@ -900,7 +901,14 @@ def main():
             # verify.py আলাদা GitHub Actions workflow এ users.json update করে
             # তাই in-memory data stale থাকে — fresh load না করলে
             # pending status দেখা যায় না
-            users = load_users()
+            fresh = load_users()
+            # memory তে থাকা temp data (credentials) merge করো
+            # এগুলো file এ save হয় না — privacy সুরক্ষার জন্য
+            for _uid, _u in users.items():
+                if "_temp_lamix_username" in _u:
+                    if _uid in fresh:
+                        fresh[_uid]["_temp_lamix_username"] = _u["_temp_lamix_username"]
+            users = fresh
             # ────────────────────────────────────────────────────────────────
 
             uid      = str(user_id)
