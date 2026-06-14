@@ -1,13 +1,12 @@
 {
   "1053087734": {
     "tg_username": "Napa_Ex",
-    "status": "new",
-    "verify_status": "",
+    "status": "pending",
+    "verify_status": "done",
     "sms_on": false,
     "sms_workflow": "",
     "sms_start_time": "",
-    "seen_file": "",
-    "step": ""
+    "seen_file": ""
   },
   "6993154309": {
     "tg_username": "Shakil_Is",
@@ -16,8 +15,7 @@
     "sms_on": false,
     "sms_workflow": "",
     "sms_start_time": "",
-    "seen_file": "",
-    "step": ""
+    "seen_file": ""
   },
   "7165109999": {
     "tg_username": "Napa_Ex2",
@@ -26,7 +24,6 @@
     "sms_on": false,
     "sms_workflow": "",
     "sms_start_time": "",
-    "seen_file": "",
-    "step": ""
+    "seen_file": ""
   }
 }
