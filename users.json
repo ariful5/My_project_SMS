@@ -5,7 +5,8 @@
     "verify_status": "",
     "sms_on": true,
     "sms_workflow": "",
-    "sms_start_time": ""
+    "sms_start_time": "",
+    "step": ""
   },
   "7198003817": {
     "tg_username": "S_HaRaL",
