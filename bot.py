@@ -173,6 +173,9 @@ def setup_bot_commands():
 
 # ── Users DB ──────────────────────────────────────────────────────────────────
 def load_users():
+    # GitHub থেকে সর্বশেষ users.json টানো
+    # verify.py আলাদা workflow এ push করে, তাই pull না করলে stale data পড়বে
+    os.system('git pull --rebase --autostash origin main 2>/dev/null || true')
     if os.path.exists(USERS_FILE):
         with open(USERS_FILE) as f:
             return json.load(f)
