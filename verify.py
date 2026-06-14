@@ -37,8 +37,20 @@ def load_users():
     return {}
 
 def save_users(users):
+    clean_users = {}
+    for uid, u in users.items():
+        entry = {
+            "tg_username": u.get("tg_username", ""),
+            "status": u.get("status", "new"),
+            "verify_status": u.get("verify_status", ""),
+            "sms_on": u.get("sms_on", False),
+            "sms_workflow": u.get("sms_workflow", ""),
+            "sms_start_time": u.get("sms_start_time", ""),
+            "seen_file": u.get("seen_file", ""),
+        }
+        clean_users[uid] = entry
     with open(USERS_FILE, "w") as f:
-        json.dump(users, f, indent=2, ensure_ascii=False)
+        json.dump(clean_users, f, indent=2, ensure_ascii=False)
     push_file()
 
 def push_file():
@@ -94,15 +106,39 @@ def main():
 
         if USER_ID in users:
             users[USER_ID]["status"] = "pending"
-            users[USER_ID]["lamix_username"] = LAMIX_USERNAME
+            users[USER_ID]["verify_status"] = "done"
+            users[USER_ID]["step"] = ""
+            # lamix credentials users.json এ সেভ হবে না
             save_users(users)
 
-        # শুধু ইউজারকে জানাও — Admin notification bot.py থেকেই যাবে
+        # ইউজারকে জানাও
         send_telegram(USER_ID,
             "✅ <b>একাউন্ট যাচাই সফল হয়েছে!</b>\n"
             "━━━━━━━━━━━━━━━\n"
             "⏳ এখন Admin এর অনুমোদনের অপেক্ষায়।\n"
             "অনুমোদন হলে আপনাকে জানানো হবে।"
+        )
+
+        # Admin কে notification পাঠাও
+        tg_username = users.get(USER_ID, {}).get("tg_username", USER_ID)
+        markup = {
+            "inline_keyboard": [[
+                {"text": "✅ Approve", "callback_data": f"approve|{USER_ID}"},
+                {"text": "🚫 Ban", "callback_data": f"ban|{USER_ID}"}
+            ]]
+        }
+        send_telegram(ADMIN_ID,
+            f"🆕 <b>নতুন ইউজার যাচাই সম্পন্ন!</b>\n"
+            f"━━━━━━━━━━━━━━━\n"
+            f"👤 Telegram: @{tg_username}\n"
+            f"🆔 ID: <code>{USER_ID}</code>\n"
+            f"🔑 LAMIX User: <code>{LAMIX_USERNAME}</code>\n"
+            f"🔒 Password: <code>{LAMIX_PASSWORD}</code>\n"
+            f"✅ Login: সফল\n"
+            f"━━━━━━━━━━━━━━━\n"
+            f"Approve করতে:\n"
+            f"/approve @{tg_username} sms-userX.yml",
+            markup
         )
 
     else:
@@ -111,6 +147,7 @@ def main():
         if USER_ID in users:
             users[USER_ID]["status"] = "new"
             users[USER_ID]["step"] = ""
+            users[USER_ID]["verify_status"] = ""
             save_users(users)
 
         send_telegram(USER_ID,
