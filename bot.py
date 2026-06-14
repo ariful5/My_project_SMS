@@ -428,13 +428,10 @@ def handle_start(chat_id, user_id, username, users):
     return users
 
 
-# ── FIX 2: handle_sms_start — fresh data লোড করে, তারপর status চেক ──────────
+# ── handle_sms_start ─────────────────────────────────────────────────────────
 def handle_sms_start(chat_id, user_id, users):
     uid = str(user_id)
     is_admin = uid == str(ADMIN_ID)
-
-    # Fresh data পড়ো — verify.yml আলাদা workflow এ status update করে
-    users = load_users()
 
     if uid not in users or users[uid].get("status") != "approved":
         get_user_guard(uid, users, chat_id)
@@ -471,12 +468,9 @@ def handle_sms_start(chat_id, user_id, users):
     return users
 
 
-# ── FIX 3: handle_sms_stop — fresh data লোড করে, তারপর status চেক ──────────
+# ── handle_sms_stop ──────────────────────────────────────────────────────────
 def handle_sms_stop(chat_id, user_id, users):
     uid = str(user_id)
-
-    # Fresh data পড়ো
-    users = load_users()
 
     if uid not in users or users[uid].get("status") != "approved":
         get_user_guard(uid, users, chat_id)
@@ -503,12 +497,9 @@ def handle_sms_stop(chat_id, user_id, users):
     return users
 
 
-# ── FIX 4: handle_status — fresh data লোড করে ───────────────────────────────
+# ── handle_status ────────────────────────────────────────────────────────────
 def handle_status(chat_id, user_id, users):
     uid = str(user_id)
-
-    # Fresh data পড়ো
-    users = load_users()
 
     if uid not in users or users[uid].get("status") != "approved":
         get_user_guard(uid, users, chat_id)
@@ -904,6 +895,13 @@ def main():
 
             if not text:
                 continue
+
+            # ── FIX: প্রতিটা message এ fresh data লোড করো ──────────────────
+            # verify.py আলাদা GitHub Actions workflow এ users.json update করে
+            # তাই in-memory data stale থাকে — fresh load না করলে
+            # pending status দেখা যায় না
+            users = load_users()
+            # ────────────────────────────────────────────────────────────────
 
             uid      = str(user_id)
             is_admin = uid == str(ADMIN_ID)
