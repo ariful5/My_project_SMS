@@ -6,8 +6,7 @@
     "sms_on": false,
     "sms_workflow": "",
     "sms_start_time": "",
-    "seen_file": "",
-    "step": ""
+    "seen_file": ""
   },
   "6993154309": {
     "tg_username": "Shakil_Is",
@@ -16,7 +15,6 @@
     "sms_on": false,
     "sms_workflow": "",
     "sms_start_time": "",
-    "seen_file": "",
-    "step": ""
+    "seen_file": ""
   }
 }
