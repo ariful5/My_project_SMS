@@ -17,6 +17,12 @@ jobs:
         with:
           token: ${{ secrets.GH_PAT_TOKEN }}
           ref: main
+          fetch-depth: 0                      # ← এটা যোগ করুন (full history)
+
+      - name: Sync latest files from remote   # ← নতুন স্টেপ
+        run: |
+          git fetch origin main
+          git reset --hard origin/main
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -36,4 +42,3 @@ jobs:
           USER1:          ${{ secrets.U1_CRED }}
           WORKFLOW_NAME:  "U1.yml"
         run: python check_sms.py
-        
