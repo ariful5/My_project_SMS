@@ -750,7 +750,6 @@ def handle_verify_result(user_id, success, lamix_username, lamix_password, users
         if "lamix_password" in users[uid]:
             del users[uid]["lamix_password"]
         save_users(users)
-
         send_message(int(uid),
             "✅ <b>যাচাই সম্পন্ন!</b>\n"
             "━━━━━━━━━━━━━━━\n"
@@ -760,24 +759,29 @@ def handle_verify_result(user_id, success, lamix_username, lamix_password, users
             "━━━━━━━━━━━━━━━\n"
             "⏳ অনুমোদনের অপেক্ষায় আছুন।"
         )
-
         notify_admin_new_user(uid, tg_username, lamix_username, lamix_password)
 
     else:
-        users[uid]["status"] = "new"
+        # ── যদি আগে pending থাকে তাহলে সেটা নষ্ট করবো না ──
+        if users[uid].get("status") == "pending":
+            pass  # pending ঠিকই আছে, কিছু করবো না
+        else:
+            users[uid]["status"] = "new"
+            users[uid]["verify_status"] = ""
         users[uid]["step"] = ""
-        users[uid]["verify_status"] = ""
         users[uid]["lamix_username"] = ""
         if "lamix_password" in users[uid]:
             del users[uid]["lamix_password"]
         save_users(users)
 
-        send_message(int(uid),
-            "❌ <b>একাউন্ট যাচাই ব্যর্থ হয়েছে!</b>\n"
-            "━━━━━━━━━━━━━━━\n"
-            "Username বা Password ভুল হতে পারে।\n"
-            "আবার চেষ্টা করতে /start দিন।"
-        )
+        # শুধু pending না হলেই error message দেখাবো
+        if users[uid].get("status") != "pending":
+            send_message(int(uid),
+                "❌ <b>একাউন্ট যাচাই ব্যর্থ হয়েছে!</b>\n"
+                "━━━━━━━━━━━━━━━\n"
+                "Username বা Password ভুল হতে পারে।\n"
+                "আবার চেষ্টা করতে /start দিন।"
+            )
 
     return users
 
