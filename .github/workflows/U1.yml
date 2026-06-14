@@ -10,7 +10,7 @@ jobs:
 
     steps:
       - name: Wait for JSON update
-        run: sleep 5
+        run: sleep 10
 
       - name: Checkout
         uses: actions/checkout@v3
