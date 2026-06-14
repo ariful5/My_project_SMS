@@ -9,10 +9,20 @@ jobs:
     timeout-minutes: 210
 
     steps:
+      - name: Wait for JSON update
+        run: sleep 5
+
       - name: Checkout
         uses: actions/checkout@v3
         with:
           token: ${{ secrets.GH_PAT_TOKEN }}
+          ref: main
+          fetch-depth: 0                      # ← এটা যোগ করুন (full history)
+
+      - name: Sync latest files from remote   # ← নতুন স্টেপ
+        run: |
+          git fetch origin main
+          git reset --hard origin/main
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -29,5 +39,6 @@ jobs:
           GH_PAT_TOKEN:   ${{ secrets.GH_PAT_TOKEN }}
           GH_REPO:        ${{ secrets.GH_REPO }}
           LAMIX_URL:      ${{ secrets.LAMIX_URL }}
-          USER1: ${{ secrets.U2_CRED }}
+          USER1:          ${{ secrets.U2_CRED }}
+          WORKFLOW_NAME:  "U2.yml"
         run: python check_sms.py
