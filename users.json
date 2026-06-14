@@ -1,34 +1,30 @@
 {
   "6993154309": {
     "tg_username": "Shakil_Is",
-    "status": "approved",
-    "lamix_username": "Hassna",
+    "status": "new",
+    "verify_status": "",
     "sms_on": true,
-    "step": "",
-    "sms_workflow": "U2.yml"
+    "sms_workflow": ""
   },
   "7198003817": {
     "tg_username": "S_HaRaL",
     "status": "new",
-    "lamix_username": "Saim",
+    "verify_status": "",
     "sms_on": false,
-    "sms_workflow": "",
-    "step": "await_password"
+    "sms_workflow": ""
   },
   "7252602282": {
     "tg_username": "Dogs4t7",
     "status": "new",
-    "lamix_username": "",
+    "verify_status": "",
     "sms_on": false,
-    "sms_workflow": "",
-    "step": ""
+    "sms_workflow": ""
   },
   "1053087734": {
     "tg_username": "Napa_Ex",
     "status": "approved",
-    "lamix_username": "Kop",
+    "verify_status": "",
     "sms_on": true,
-    "sms_workflow": "U1.yml",
-    "step": ""
+    "sms_workflow": "U1.yml"
   }
 }
