@@ -104,20 +104,6 @@ def get_user_guard(uid, users, chat_id):
             markup
         )
         return True
-    elif status == "verifying":
-        # ── verify চলছে কিন্তু result আসেনি, new করে দাও ──
-        users[uid]["status"] = "new"
-        users[uid]["step"] = ""
-        users[uid]["verify_status"] = ""
-        save_users(users)
-        markup = {"inline_keyboard": [[{"text": "🔗 একাউন্ট যোগ করুন", "callback_data": "link_account"}]]}
-        send_message(chat_id,
-            "⚠️ <b>একাউন্ট যাচাই সম্পন্ন হয়নি!</b>\n"
-            "━━━━━━━━━━━━━━━\n"
-            "আবার চেষ্টা করতে নিচের বাটনে চাপুন 👇",
-            markup
-        )
-        return True
     elif status == "pending":
         send_message(chat_id,
             "⏳ <b>অনুমোদনের অপেক্ষায়</b>\n"
@@ -390,7 +376,7 @@ def handle_start(chat_id, user_id, username, users):
                 "নিচের বাটনে চাপুন 👇",
                 markup
             )
-        elif status in ("pending", "verifying"):
+        elif status == "pending":
             send_message(chat_id,
                 "⏳ <b>অনুমোদনের অপেক্ষায়</b>\n"
                 "━━━━━━━━━━━━━━━\n"
@@ -422,7 +408,7 @@ def handle_start(chat_id, user_id, username, users):
             "নিচের বাটনে চাপুন 👇",
             markup
         )
-    elif status in ("pending", "verifying"):
+    elif status == "pending":
         send_message(chat_id, "⏳ আপনার একাউন্ট verify হচ্ছে...")
 
     return users
@@ -567,8 +553,6 @@ def handle_user_detail(chat_id, target_username, users):
             status_icon = {"approved": "✅", "pending": "⏳", "banned": "🚫", "new": "🆕"}.get(u.get("status", "new"), "❓")
             sms_icon = "🟢 চালু" if u.get("sms_on") else "🔴 বন্ধ"
             wf = u.get("sms_workflow", "") or "❌ সেট নেই"
-            lamix_user = u.get("lamix_username", "") or "❌ নেই"
-            lamix_pass = u.get("lamix_password", "") or "❌ নেই"
             verify = u.get("verify_status", "") or "❌"
             seen_f = u.get("seen_file", "") or "❌ সেট নেই"
 
@@ -578,8 +562,6 @@ def handle_user_detail(chat_id, target_username, users):
                 f"👤 Telegram: @{u.get('tg_username', 'N/A')}\n"
                 f"🆔 ID: <code>{uid}</code>\n"
                 f"━━━━━━━━━━━━━━━\n"
-                f"🔑 LAMIX User: <code>{lamix_user}</code>\n"
-                f"🔒 Password: <code>{lamix_pass}</code>\n"
                 f"✔️ Verify: {verify}\n"
                 f"━━━━━━━━━━━━━━━\n"
                 f"📋 Workflow: <code>{wf}</code>\n"
@@ -681,8 +663,8 @@ def handle_step(chat_id, user_id, text, users):
         lamix_username = users[uid].get("lamix_username", "")
         lamix_password = text.strip()
 
-        users[uid]["lamix_password"] = lamix_password
-        users[uid]["step"] = "verifying"
+        # credentials মেমোরিতে রাখি, কিন্তু users dict-এ সেভ করি না
+        users[uid]["step"] = "verifying_temp"
 
         send_message(chat_id,
             "⏳ <b>একাউন্ট যাচাই করা হচ্ছে...</b>\n"
@@ -695,13 +677,14 @@ def handle_step(chat_id, user_id, text, users):
             "lamix_password": lamix_password
         })
 
+        # username মেমোরি থেকে সরিয়ে দাও
+        users[uid].pop("lamix_username", None)
+
         if triggered:
             if is_admin:
                 users[uid]["status"] = "approved"
                 users[uid]["verify_status"] = "done"
                 users[uid]["step"] = ""
-                del users[uid]["lamix_password"]
-                users[uid]["lamix_username"] = ""
                 save_users(users)
                 send_message(chat_id,
                     "🎉 <b>Admin একাউন্ট সেটআপ সম্পন্ন!</b>\n"
@@ -715,7 +698,7 @@ def handle_step(chat_id, user_id, text, users):
                     "তারপর /sms_start দিয়ে শুরু করুন।"
                 )
             else:
-                users[uid]["status"] = "verifying"
+                users[uid]["status"] = "new"
                 users[uid]["step"] = ""
                 save_users(users)
         else:
@@ -728,9 +711,6 @@ def handle_step(chat_id, user_id, text, users):
             users[uid]["status"] = "new"
             users[uid]["step"] = ""
             users[uid]["verify_status"] = ""
-            if "lamix_password" in users[uid]:
-                del users[uid]["lamix_password"]
-            users[uid]["lamix_username"] = ""
             save_users(users)
 
     return users
@@ -746,9 +726,7 @@ def handle_verify_result(user_id, success, lamix_username, lamix_password, users
     if success:
         users[uid]["status"] = "pending"
         users[uid]["verify_status"] = "done"
-        users[uid]["lamix_username"] = ""
-        if "lamix_password" in users[uid]:
-            del users[uid]["lamix_password"]
+        users[uid]["step"] = ""
         save_users(users)
         send_message(int(uid),
             "✅ <b>যাচাই সম্পন্ন!</b>\n"
@@ -762,19 +740,14 @@ def handle_verify_result(user_id, success, lamix_username, lamix_password, users
         notify_admin_new_user(uid, tg_username, lamix_username, lamix_password)
 
     else:
-        # ── যদি আগে pending থাকে তাহলে সেটা নষ্ট করবো না ──
         if users[uid].get("status") == "pending":
             pass  # pending ঠিকই আছে, কিছু করবো না
         else:
             users[uid]["status"] = "new"
             users[uid]["verify_status"] = ""
         users[uid]["step"] = ""
-        users[uid]["lamix_username"] = ""
-        if "lamix_password" in users[uid]:
-            del users[uid]["lamix_password"]
         save_users(users)
 
-        # শুধু pending না হলেই error message দেখাবো
         if users[uid].get("status") != "pending":
             send_message(int(uid),
                 "❌ <b>একাউন্ট যাচাই ব্যর্থ হয়েছে!</b>\n"
@@ -873,14 +846,11 @@ def handle_admin_command(chat_id, text, users):
         for uid, u in users.items():
             if u.get("tg_username", "").lower() == target_username:
                 users[uid]["status"] = "new"
-                users[uid]["lamix_username"] = ""
                 users[uid]["verify_status"] = ""
                 users[uid]["sms_workflow"] = ""
                 users[uid]["seen_file"] = ""
                 users[uid]["sms_start_time"] = ""
                 users[uid]["step"] = ""
-                if "lamix_password" in users[uid]:
-                    del users[uid]["lamix_password"]
                 save_users(users)
                 send_message(chat_id, f"🆕 @{target_username} কে new user করা হয়েছে।")
                 send_message(int(uid),
