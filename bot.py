@@ -713,14 +713,6 @@ def handle_step(chat_id, user_id, text, users):
                 users[uid]["status"] = "verifying"
                 users[uid]["step"] = ""
                 save_users(users)
-                send_message(chat_id,
-                    "⏳ <b>যাচাই চলছে...</b>\n"
-                    "━━━━━━━━━━━━━━━\n"
-                    "আপনার তথ্য যাচাই হচ্ছে।\n"
-                    "সঠিক হলে Admin এর কাছে\n"
-                    "অনুমোদনের জন্য পাঠানো হবে।\n"
-                    "একটু অপেক্ষা করুন।"
-                )
         else:
             send_message(chat_id,
                 "❌ <b>একাউন্ট যাচাই ব্যর্থ হয়েছে!</b>\n"
@@ -756,9 +748,11 @@ def handle_verify_result(user_id, success, lamix_username, lamix_password, users
         send_message(int(uid),
             "✅ <b>যাচাই সম্পন্ন!</b>\n"
             "━━━━━━━━━━━━━━━\n"
-            "Admin অনুমোদন করলে SMS চেকার\n"
-            "ব্যবহার করতে পারবেন।\n"
-            "একটু অপেক্ষা করুন।"
+            "আপনার তথ্য সঠিক আছে।\n"
+            "Admin অনুমোদন করলেই আপনি\n"
+            "SMS চেকার ব্যবহার করতে পারবেন।\n"
+            "━━━━━━━━━━━━━━━\n"
+            "⏳ অনুমোদনের অপেক্ষায় আছুন।"
         )
 
         notify_admin_new_user(uid, tg_username, lamix_username, lamix_password)
