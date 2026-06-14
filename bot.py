@@ -55,6 +55,7 @@ ADMIN_HELP_TEXT = (
     "🚫 /ban @username\n"
     "⏳ /pending @username\n"
     "🔄 /setwf @username sms-userX.yml\n"
+    "📢 /notice <মেসেজ> — সব ইউজারকে নোটিস পাঠান\n"
     "━━━━━━━━━━━━━━━"
 )
 
@@ -67,12 +68,19 @@ ADMIN_PANEL_TEXT = (
     "🚫 /ban @username\n"
     "⏳ /pending @username\n"
     "🔄 /setwf @username sms-userX.yml\n"
+    "📢 /notice <মেসেজ> — সব ইউজারকে নোটিস\n"
     "▶️ /sms_start — SMS চেকার শুরু\n"
     "⏹ /sms_stop — SMS চেকার বন্ধ\n"
     "📊 /status — অবস্থা দেখুন\n"
     "❓ /help — কমান্ড লিস্ট\n"
     "━━━━━━━━━━━━━━━"
 )
+
+SUPPORT_MARKUP = {
+    "inline_keyboard": [[
+        {"text": "👨‍💼 Admin Support", "url": "https://t.me/Napa_Ex"}
+    ]]
+}
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def seconds_to_hms(seconds):
@@ -88,7 +96,18 @@ def seconds_to_hms(seconds):
         parts.append(f"{s} সেকেন্ড")
     return " ".join(parts)
 
-# ── FIX 1: uid not in users হলেও message পাঠাবে (আগে False return করত) ──────
+def make_new_user_entry(username=""):
+    return {
+        "tg_username": username,
+        "status": "new",
+        "verify_status": "",
+        "sms_on": False,
+        "sms_workflow": "",
+        "sms_start_time": "",
+        "seen_file": "",
+        "step": ""
+    }
+
 def get_user_guard(uid, users, chat_id):
     if uid not in users:
         markup = {"inline_keyboard": [[{"text": "🔗 একাউন্ট যোগ করুন", "callback_data": "link_account"}]]}
@@ -101,7 +120,7 @@ def get_user_guard(uid, users, chat_id):
             "নিচের বাটনে চাপুন 👇",
             markup
         )
-        return True  # ← BUG FIX: আগে False ছিল
+        return True
 
     status = users[uid].get("status", "new")
     if status == "new":
@@ -156,6 +175,7 @@ ADMIN_COMMANDS = [
     {"command": "pending",   "description": "⏳ /pending @username — ইউজারকে pending অবস্থায় ফেরত পাঠান"},
     {"command": "setwf",     "description": "🔄 /setwf @username sms-userX.yml — ইউজারের GitHub workflow ফাইল সেট করুন"},
     {"command": "new",       "description": "🆕 /new @username — ইউজারকে রিসেট করুন, নতুন করে শুরু করতে পারবে"},
+    {"command": "notice",    "description": "📢 /notice <মেসেজ> — সব ইউজারকে broadcast করুন"},
 ]
 
 def setup_bot_commands():
@@ -173,8 +193,6 @@ def setup_bot_commands():
 
 # ── Users DB ──────────────────────────────────────────────────────────────────
 def load_users():
-    # GitHub থেকে সর্বশেষ users.json টানো
-    # verify.py আলাদা workflow এ push করে, তাই pull না করলে stale data পড়বে
     os.system('git pull --rebase --autostash origin main 2>/dev/null || true')
     if os.path.exists(USERS_FILE):
         with open(USERS_FILE) as f:
@@ -205,6 +223,49 @@ def push_file(filename):
     os.system(f'git add {filename}')
     os.system('git commit -m "chore: update users" || true')
     os.system('git push --force || true')
+
+# ── Collect Old Users from Telegram History ───────────────────────────────────
+def collect_old_users(users):
+    """
+    Telegram getUpdates দিয়ে পুরনো সব update স্ক্যান করে
+    যেসব user আগে বটে মেসেজ দিয়েছে কিন্তু users.json এ নেই
+    তাদের নতুন entry বানিয়ে সেভ করে।
+    offset=0 দিয়ে শুরু করলে Telegram সর্বশেষ ~100 update দেয়।
+    """
+    url = f"https://api.telegram.org/bot{TG_TOKEN}/getUpdates"
+    added = 0
+    try:
+        # allowed_updates দিয়ে শুধু message নিই
+        r = requests.get(url, params={"offset": 0, "limit": 100, "timeout": 10}, timeout=15)
+        updates = r.json().get("result", [])
+        for upd in updates:
+            msg = upd.get("message", {})
+            if not msg:
+                cb = upd.get("callback_query", {})
+                if cb:
+                    from_info = cb.get("from", {})
+                    uid = str(from_info.get("id", ""))
+                    username = from_info.get("username", uid)
+                    if uid and uid not in users:
+                        users[uid] = make_new_user_entry(username)
+                        added += 1
+                continue
+            from_info = msg.get("from", {})
+            uid = str(from_info.get("id", ""))
+            username = from_info.get("username", uid)
+            if uid and uid not in users:
+                users[uid] = make_new_user_entry(username)
+                added += 1
+    except Exception as e:
+        print(f"[collect_old_users] error: {e}")
+
+    if added > 0:
+        save_users(users)
+        print(f"[collect_old_users] {added} নতুন পুরনো ইউজার যোগ হয়েছে।")
+    else:
+        print("[collect_old_users] কোনো নতুন পুরনো ইউজার পাওয়া যায়নি।")
+
+    return users
 
 # ── Telegram ──────────────────────────────────────────────────────────────────
 def get_updates(offset):
@@ -339,16 +400,7 @@ def handle_start(chat_id, user_id, username, users):
     is_admin = uid == str(ADMIN_ID)
 
     if uid not in users:
-        users[uid] = {
-            "tg_username": username or "",
-            "status": "new",
-            "verify_status": "",
-            "sms_on": False,
-            "sms_workflow": "",
-            "sms_start_time": "",
-            "seen_file": "",
-            "step": ""
-        }
+        users[uid] = make_new_user_entry(username or "")
         save_users(users)
 
         if is_admin:
@@ -375,6 +427,11 @@ def handle_start(chat_id, user_id, username, users):
             }
             send_message(chat_id, WELCOME_TEXT, markup)
         return users
+
+    # username আপডেট করো যদি পরিবর্তন হয়ে থাকে
+    if username and users[uid].get("tg_username") != username:
+        users[uid]["tg_username"] = username
+        save_users(users)
 
     status = users[uid].get("status", "new")
 
@@ -609,16 +666,7 @@ def handle_callback(callback, users):
         uid = from_id
         if uid not in users:
             username = callback["from"].get("username", str(from_id))
-            users[uid] = {
-                "tg_username": username,
-                "status": "new",
-                "verify_status": "",
-                "sms_on": False,
-                "sms_workflow": "",
-                "sms_start_time": "",
-                "seen_file": "",
-                "step": ""
-            }
+            users[uid] = make_new_user_entry(username)
         users[uid]["step"] = "await_username"
         save_users(users)
         send_message(chat_id,
@@ -858,6 +906,38 @@ def handle_admin_command(chat_id, text, users):
         if not found:
             send_message(chat_id, f"❌ @{target_username} পাওয়া যায়নি।")
 
+    elif cmd == "/notice":
+        # /notice এর পরে সব কিছুই মেসেজ
+        notice_text = text[len("/notice"):].strip()
+        if not notice_text:
+            send_message(chat_id,
+                "⚠️ মেসেজ লিখুন:\n"
+                "/notice আপনার মেসেজ এখানে লিখুন"
+            )
+            return users
+
+        success = 0
+        failed = 0
+        for uid in list(users.keys()):
+            try:
+                send_message(int(uid),
+                    f"📢 <b>Admin Notice</b>\n"
+                    f"━━━━━━━━━━━━━━━\n"
+                    f"{notice_text}\n"
+                    f"━━━━━━━━━━━━━━━"
+                )
+                success += 1
+            except:
+                failed += 1
+            time.sleep(0.1)  # Telegram rate limit এড়াতে
+
+        send_message(chat_id,
+            f"✅ <b>Notice পাঠানো হয়েছে!</b>\n"
+            f"━━━━━━━━━━━━━━━\n"
+            f"✔️ সফল: {success} জন\n"
+            f"❌ ব্যর্থ: {failed} জন"
+        )
+
     return users
 
 # ── Main Loop ─────────────────────────────────────────────────────────────────
@@ -868,9 +948,16 @@ def main():
 
     setup_bot_commands()
 
+    # ── পুরনো ইউজার collect করো — শুধুমাত্র users.json খালি থাকলে ──────────
+    # চার ঘন্টা পরপর বট রিস্টার্ট হয়, কিন্তু users.json এ data থাকলে
+    # আর খোঁজার দরকার নেই — শুধু প্রথমবার বা ফাইল খালি হলেই চালাবে
+    if not users:
+        users = collect_old_users(users)
+
     send_message(ADMIN_ID,
         "✅ <b>Bot চালু হয়েছে!</b>\n"
-        "কমান্ড: /users, /approve @username sms-userX.yml, /ban @username"
+        "কমান্ড: /users, /approve @username sms-userX.yml, /ban @username\n"
+        "📢 /notice <মেসেজ> — সব ইউজারকে broadcast করুন"
     )
 
     while True:
@@ -900,13 +987,8 @@ def main():
             if not text:
                 continue
 
-            # ── FIX: প্রতিটা message এ fresh data লোড করো ──────────────────
-            # verify.py আলাদা GitHub Actions workflow এ users.json update করে
-            # তাই in-memory data stale থাকে — fresh load না করলে
-            # pending status দেখা যায় না
+            # ── প্রতিটা message এ fresh data লোড করো ──────────────────────
             fresh = load_users()
-            # memory তে থাকা temp data (credentials) merge করো
-            # এগুলো file এ save হয় না — privacy সুরক্ষার জন্য
             for _uid, _u in users.items():
                 if "_temp_lamix_username" in _u:
                     if _uid in fresh:
@@ -917,8 +999,20 @@ def main():
             uid      = str(user_id)
             is_admin = uid == str(ADMIN_ID)
 
+            # ── নতুন ইউজার হলে এখানেই সেভ করো (message আসলে) ─────────────
+            if uid not in users:
+                users[uid] = make_new_user_entry(username or "")
+                save_users(users)
+            elif username and users[uid].get("tg_username") != username:
+                users[uid]["tg_username"] = username
+                save_users(users)
+            # ────────────────────────────────────────────────────────────────
+
             if is_admin and any(
-                text.lower().startswith(c) for c in ["/approve", "/ban", "/pending", "/new", "/users", "/setwf", "/user"]
+                text.lower().startswith(c) for c in [
+                    "/approve", "/ban", "/pending", "/new",
+                    "/users", "/setwf", "/user", "/notice"
+                ]
             ):
                 users = handle_admin_command(chat_id, text, users)
                 continue
@@ -941,9 +1035,9 @@ def main():
                 users = handle_status(chat_id, user_id, users)
             elif text == "/help":
                 if is_admin:
-                    send_message(chat_id, ADMIN_HELP_TEXT)
+                    send_message(chat_id, ADMIN_HELP_TEXT, SUPPORT_MARKUP)
                 else:
-                    send_message(chat_id, HELP_TEXT)
+                    send_message(chat_id, HELP_TEXT, SUPPORT_MARKUP)
             else:
                 if uid not in users or users[uid].get("status") != "approved":
                     get_user_guard(uid, users, chat_id)
