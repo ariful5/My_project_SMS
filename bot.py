@@ -88,9 +88,21 @@ def seconds_to_hms(seconds):
         parts.append(f"{s} সেকেন্ড")
     return " ".join(parts)
 
+# ── FIX 1: uid not in users হলেও message পাঠাবে (আগে False return করত) ──────
 def get_user_guard(uid, users, chat_id):
     if uid not in users:
-        return False
+        markup = {"inline_keyboard": [[{"text": "🔗 একাউন্ট যোগ করুন", "callback_data": "link_account"}]]}
+        send_message(chat_id,
+            "⚠️ <b>একাউন্ট যোগ করা হয়নি!</b>\n"
+            "━━━━━━━━━━━━━━━\n"
+            "SMS চেকার ব্যবহার করতে\n"
+            "আগে LAMIX একাউন্ট যোগ করুন।\n"
+            "━━━━━━━━━━━━━━━\n"
+            "নিচের বাটনে চাপুন 👇",
+            markup
+        )
+        return True  # ← BUG FIX: আগে False ছিল
+
     status = users[uid].get("status", "new")
     if status == "new":
         markup = {"inline_keyboard": [[{"text": "🔗 একাউন্ট যোগ করুন", "callback_data": "link_account"}]]}
@@ -416,9 +428,13 @@ def handle_start(chat_id, user_id, username, users):
     return users
 
 
+# ── FIX 2: handle_sms_start — fresh data লোড করে, তারপর status চেক ──────────
 def handle_sms_start(chat_id, user_id, users):
     uid = str(user_id)
     is_admin = uid == str(ADMIN_ID)
+
+    # Fresh data পড়ো — verify.yml আলাদা workflow এ status update করে
+    users = load_users()
 
     if uid not in users or users[uid].get("status") != "approved":
         get_user_guard(uid, users, chat_id)
@@ -455,8 +471,12 @@ def handle_sms_start(chat_id, user_id, users):
     return users
 
 
+# ── FIX 3: handle_sms_stop — fresh data লোড করে, তারপর status চেক ──────────
 def handle_sms_stop(chat_id, user_id, users):
     uid = str(user_id)
+
+    # Fresh data পড়ো
+    users = load_users()
 
     if uid not in users or users[uid].get("status") != "approved":
         get_user_guard(uid, users, chat_id)
@@ -483,8 +503,12 @@ def handle_sms_stop(chat_id, user_id, users):
     return users
 
 
+# ── FIX 4: handle_status — fresh data লোড করে ───────────────────────────────
 def handle_status(chat_id, user_id, users):
     uid = str(user_id)
+
+    # Fresh data পড়ো
+    users = load_users()
 
     if uid not in users or users[uid].get("status") != "approved":
         get_user_guard(uid, users, chat_id)
@@ -655,21 +679,19 @@ def handle_step(chat_id, user_id, text, users):
     step = users[uid].get("step", "")
 
     if step == "await_username":
-        # মেমোরিতে রাখি, users.json এ সেভ করি না
         users[uid]["_temp_lamix_username"] = text.strip()
         users[uid]["step"] = "await_password"
-        save_users(users)  # শুধু step আপডেট হবে, lamix_username যাবে না
+        save_users(users)
         send_message(chat_id,
             "🔒 এখন আপনার <b>LAMIX Password</b> লিখুন:"
         )
 
     elif step == "await_password":
-        # temp username মেমোরি থেকে নাও (users.json এ নেই)
         lamix_username = users[uid].pop("_temp_lamix_username", "")
         lamix_password = text.strip()
 
         users[uid]["step"] = ""
-        save_users(users)  # শুধু step clear হবে, credentials যাবে না
+        save_users(users)
 
         send_message(chat_id,
             "⏳ <b>একাউন্ট যাচাই করা হচ্ছে...</b>\n"
@@ -720,7 +742,7 @@ def handle_verify_result(user_id, success, lamix_username, lamix_password, users
 
     else:
         if users[uid].get("status") == "pending":
-            pass  # pending ঠিকই আছে, কিছু করবো না
+            pass
         else:
             users[uid]["status"] = "new"
             users[uid]["verify_status"] = ""
