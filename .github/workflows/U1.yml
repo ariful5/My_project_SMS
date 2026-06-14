@@ -29,5 +29,7 @@ jobs:
           GH_PAT_TOKEN:   ${{ secrets.GH_PAT_TOKEN }}
           GH_REPO:        ${{ secrets.GH_REPO }}
           LAMIX_URL:      ${{ secrets.LAMIX_URL }}
-          USER1: ${{ secrets.U1_CRED }}
+          USER1:          ${{ secrets.U1_CRED }}
+          WORKFLOW_NAME:  "U1.yml"
         run: python check_sms.py
+        
