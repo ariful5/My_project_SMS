@@ -8,14 +8,15 @@ from bs4 import BeautifulSoup
 from datetime import datetime, date, timedelta
 
 # ── Global Config ─────────────────────────────────────────────────────────────
-BASE_URL       = os.environ["LAMIX_URL"]
-TG_TOKEN       = os.environ["TELEGRAM_TOKEN"]
-ADMIN_ID       = os.environ["ADMIN_CHAT_ID"]
-USERS_FILE     = "users.json"
-SEEN_FILE      = "seen_ids.json"
-DEVELOPER      = "https://t.me/Napa_Ex"
-RUN_DURATION   = 195 * 60
-CHECK_INTERVAL = 1
+BASE_URL         = os.environ["LAMIX_URL"]
+TG_TOKEN         = os.environ["TELEGRAM_TOKEN"]
+ADMIN_ID         = os.environ["ADMIN_CHAT_ID"]
+USERS_FILE       = "users.json"
+SEEN_FILE        = "seen_ids.json"
+DEVELOPER        = "https://t.me/Napa_Ex"
+RUN_DURATION     = 195 * 60
+CHECK_INTERVAL   = 1
+CURRENT_WORKFLOW = os.environ.get("WORKFLOW_NAME", "")
 
 # ── Country Price List ────────────────────────────────────────────────────────
 COUNTRY_PRICES = {
@@ -211,7 +212,6 @@ def check_once(session, seen_ids):
     data = r.json()
     rows = data.get("aaData") or data.get("data") or []
     daily_income = calc_daily_income(rows)
-    new_found = False
 
     for row in rows:
         if isinstance(row, dict):
@@ -228,10 +228,7 @@ def check_once(session, seen_ids):
             )
             cli_count = get_cli_count_today(rows, cli)
             seen_ids.add(row_id)
-            new_found = True
             yield row, total_today_number, daily_income, cli_count
-
-    return seen_ids, new_found
 
 # ── Per-User Worker Thread ────────────────────────────────────────────────────
 def user_worker(uid, user_data, all_seen, all_seen_lock):
@@ -247,7 +244,6 @@ def user_worker(uid, user_data, all_seen, all_seen_lock):
     session = do_login(username, password)
 
     if not session:
-        # ── Login fail → user-কে সরাসরি জানাও ──
         send_telegram(tg_id,
             "❌ <b>Login ব্যর্থ হয়েছে!</b>\n"
             "━━━━━━━━━━━━━━━\n"
@@ -256,7 +252,6 @@ def user_worker(uid, user_data, all_seen, all_seen_lock):
         )
         return
 
-    # ── Login সফল → "চালু হয়েছে" message পাঠাও ──
     h = RUN_DURATION // 3600
     m = (RUN_DURATION % 3600) // 60
     s = RUN_DURATION % 60
@@ -276,9 +271,9 @@ def user_worker(uid, user_data, all_seen, all_seen_lock):
     with all_seen_lock:
         seen_ids = set(all_seen.get(uid, []))
 
-    start_time  = time.time()
-    last_push   = time.time()
-    loop_count  = 0
+    start_time = time.time()
+    last_push  = time.time()
+    loop_count = 0
 
     while True:
         elapsed = time.time() - start_time
@@ -306,7 +301,6 @@ def user_worker(uid, user_data, all_seen, all_seen_lock):
 
         time.sleep(CHECK_INTERVAL)
 
-    # শেষে push
     with all_seen_lock:
         all_seen[uid] = list(seen_ids)
     save_all_seen(all_seen)
@@ -321,6 +315,7 @@ def main():
     with open(USERS_FILE) as f:
         users = json.load(f)
 
+    # ── Secrets থেকে USER1..USER50 লোড ──
     for i in range(1, 51):
         secret_value = os.environ.get(f"USER{i}", "")
         if secret_value and "::" in secret_value:
@@ -350,16 +345,22 @@ def main():
     all_seen_lock = threading.Lock()
     threads       = []
 
+    # ── Approved + sms_on + এই workflow এর ইউজার ──
     approved_users = {
         uid: u for uid, u in users.items()
-        if u.get("status") == "approved" and u.get("sms_on", False)
+        if u.get("status") == "approved"
+        and u.get("sms_on", False)
+        and (
+            not CURRENT_WORKFLOW                                  # workflow নাম না থাকলে সবাই
+            or u.get("sms_workflow", "") == CURRENT_WORKFLOW      # নাম থাকলে শুধু নিজের ইউজার
+        )
     }
 
     if not approved_users:
-        print("⚠️ কোনো active approved ইউজার নেই।")
+        print(f"⚠️ [{CURRENT_WORKFLOW or 'default'}] কোনো active approved ইউজার নেই।")
         return
 
-    print(f"✅ {len(approved_users)} জন ইউজারের জন্য thread শুরু হচ্ছে...")
+    print(f"✅ {len(approved_users)} জন ইউজারের জন্য thread শুরু হচ্ছে... (workflow: {CURRENT_WORKFLOW or 'all'})")
 
     for uid, user_data in approved_users.items():
         user_data["tg_id"] = uid
@@ -379,3 +380,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    
