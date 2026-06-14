@@ -245,17 +245,31 @@ def user_worker(uid, user_data, all_seen, all_seen_lock):
 
     print(f"[{username}] শুরু হচ্ছে...")
     session = do_login(username, password)
+
     if not session:
+        # ── Login fail → user-কে সরাসরি জানাও ──
         send_telegram(tg_id,
-            f"❌ <b>Login ব্যর্থ হয়েছে!</b>\n"
-            f"Username বা Password ভুল হতে পারে।"
+            "❌ <b>Login ব্যর্থ হয়েছে!</b>\n"
+            "━━━━━━━━━━━━━━━\n"
+            "⚠️ Username অথবা Password ভুল আছে।\n"
+            "সঠিক তথ্য দিয়ে আবার চেষ্টা করুন।"
         )
         return
+
+    # ── Login সফল → "চালু হয়েছে" message পাঠাও ──
+    h = RUN_DURATION // 3600
+    m = (RUN_DURATION % 3600) // 60
+    s = RUN_DURATION % 60
+    parts = []
+    if h: parts.append(f"{h} ঘন্টা")
+    if m: parts.append(f"{m} মিনিট")
+    if s: parts.append(f"{s} সেকেন্ড")
+    duration_str = " ".join(parts)
 
     send_telegram(tg_id,
         "✅ <b>SMS চেকার চালু হয়েছে!</b>\n"
         "━━━━━━━━━━━━━━━\n"
-        "⏱ চলবে: ১৯৫ মিনিট\n"
+        f"⏱ চলবে: {duration_str}\n"
         "🔄 চেক হবে: প্রতি ১ সেকেন্ডে"
     )
 
@@ -284,7 +298,6 @@ def user_worker(uid, user_data, all_seen, all_seen_lock):
         except Exception as e:
             print(f"[{username}] check error: {e}")
 
-        # Seen IDs আপডেট
         if new_found or (time.time() - last_push >= 60):
             with all_seen_lock:
                 all_seen[uid] = list(seen_ids)
@@ -301,7 +314,6 @@ def user_worker(uid, user_data, all_seen, all_seen_lock):
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
-    # users.json লোড করো
     if not os.path.exists(USERS_FILE):
         print("❌ users.json পাওয়া যায়নি!")
         return
@@ -309,24 +321,20 @@ def main():
     with open(USERS_FILE) as f:
         users = json.load(f)
 
-    # GitHub Secrets থেকে credential লোড করো (username::password::tg_id ফরম্যাটে)
     for i in range(1, 51):
         secret_value = os.environ.get(f"USER{i}", "")
-        
         if secret_value and "::" in secret_value:
             try:
                 parts = secret_value.split("::")
                 if len(parts) >= 3:
                     username = parts[0].strip()
                     password = parts[1].strip()
-                    tg_id = parts[2].strip()
-                    
-                    # tg_id কে key হিসেবে ব্যবহার করুন
+                    tg_id    = parts[2].strip()
+
                     if tg_id in users:
                         users[tg_id]["lamix_username"] = username
                         users[tg_id]["lamix_password"] = password
                     else:
-                        # যদি tg_id users.json এ না থাকে, নতুন entry তৈরি করুন
                         users[tg_id] = {
                             "tg_id": tg_id,
                             "lamix_username": username,
@@ -338,7 +346,6 @@ def main():
             except Exception as e:
                 print(f"❌ USER{i} লোডে error: {e}")
 
-    # Approved ইউজার যাদের sms_on = True তাদের thread চালাও
     all_seen      = load_all_seen()
     all_seen_lock = threading.Lock()
     threads       = []
@@ -355,7 +362,6 @@ def main():
     print(f"✅ {len(approved_users)} জন ইউজারের জন্য thread শুরু হচ্ছে...")
 
     for uid, user_data in approved_users.items():
-        # tg_id সেট করো
         user_data["tg_id"] = uid
         t = threading.Thread(
             target=user_worker,
@@ -364,9 +370,8 @@ def main():
         )
         t.start()
         threads.append(t)
-        time.sleep(0.5)  # একসাথে login flood এড়াতে
+        time.sleep(0.5)
 
-    # সব thread শেষ হওয়ার অপেক্ষা
     for t in threads:
         t.join()
 
