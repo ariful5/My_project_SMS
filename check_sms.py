@@ -63,9 +63,12 @@ def save_seen(seen_file, seen_ids):
 def push_seen(seen_file):
     os.system('git config user.email "action@github.com"')
     os.system('git config user.name "GitHub Action"')
+    os.system('git stash || true')
+    os.system('git pull --rebase origin main || true')
+    os.system('git stash pop || true')
     os.system(f'git add {seen_file}')
     os.system('git commit -m "chore: update seen_ids" || true')
-    os.system('git push --force || true')
+    os.system('git push origin main || true')
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def get_price_from_range(range_str):
@@ -268,7 +271,6 @@ def user_worker(uid, user_data):
         "🔄 চেক হবে: প্রতি ১ সেকেন্ডে"
     )
 
-    # আলাদা ফাইল থেকে seen IDs লোড
     seen_ids = load_seen(seen_file)
 
     start_time = time.time()
@@ -300,7 +302,6 @@ def user_worker(uid, user_data):
 
         time.sleep(CHECK_INTERVAL)
 
-    # ── Loop শেষ — final save + বন্ধ notification ──
     save_seen(seen_file, seen_ids)
     push_seen(seen_file)
 
@@ -322,7 +323,6 @@ def main():
     with open(USERS_FILE) as f:
         users = json.load(f)
 
-    # ── Secrets থেকে USER1..USER50 লোড ──
     for i in range(1, 51):
         secret_value = os.environ.get(f"USER{i}", "")
         if secret_value and "::" in secret_value:
@@ -350,7 +350,6 @@ def main():
 
     threads = []
 
-    # ── Approved + sms_on + এই workflow এর ইউজার ──
     approved_users = {
         uid: u for uid, u in users.items()
         if u.get("status") == "approved"
