@@ -12,7 +12,6 @@ BASE_URL         = os.environ["LAMIX_URL"]
 TG_TOKEN         = os.environ["TELEGRAM_TOKEN"]
 ADMIN_ID         = os.environ["ADMIN_CHAT_ID"]
 USERS_FILE       = "users.json"
-SEEN_FILE        = "seen_ids.json"
 DEVELOPER        = "https://t.me/Napa_Ex"
 RUN_DURATION     = 195 * 60
 CHECK_INTERVAL   = 1
@@ -40,31 +39,31 @@ COUNTRY_PRICES = {
     "uzbekistan": 0.0078, "vietnam": 0.0078, "mobifone": 0.0078, "zimbabwe": 0.0078,
 }
 
-# ── Seen IDs (per user) ───────────────────────────────────────────────────────
+# ── Seen IDs (per user, separate file) ───────────────────────────────────────
 seen_lock = threading.Lock()
 
 def get_session_date():
     bd_now = datetime.utcnow() + timedelta(hours=6)
     return (bd_now - timedelta(hours=6)).strftime("%Y-%m-%d")
 
-def load_all_seen():
-    if os.path.exists(SEEN_FILE):
-        with open(SEEN_FILE) as f:
+def load_seen(seen_file):
+    if os.path.exists(seen_file):
+        with open(seen_file) as f:
             data = json.load(f)
-            if isinstance(data, dict) and data.get("date") == get_session_date():
-                return data.get("users", {})
-    return {}
+            if data.get("date") == get_session_date():
+                return set(data.get("ids", []))
+    return set()
 
-def save_all_seen(all_seen):
+def save_seen(seen_file, seen_ids):
     with seen_lock:
-        data = {"date": get_session_date(), "users": all_seen}
-        with open(SEEN_FILE, "w") as f:
+        data = {"date": get_session_date(), "ids": list(seen_ids)}
+        with open(seen_file, "w") as f:
             json.dump(data, f)
 
-def push_seen():
+def push_seen(seen_file):
     os.system('git config user.email "action@github.com"')
     os.system('git config user.name "GitHub Action"')
-    os.system(f'git add {SEEN_FILE}')
+    os.system(f'git add {seen_file}')
     os.system('git commit -m "chore: update seen_ids" || true')
     os.system('git push --force || true')
 
@@ -231,16 +230,17 @@ def check_once(session, seen_ids):
             yield row, total_today_number, daily_income, cli_count
 
 # ── Per-User Worker Thread ────────────────────────────────────────────────────
-def user_worker(uid, user_data, all_seen, all_seen_lock):
-    tg_id    = user_data.get("tg_id") or uid
-    username = user_data.get("lamix_username", "")
-    password = user_data.get("lamix_password", "")
+def user_worker(uid, user_data):
+    tg_id     = user_data.get("tg_id") or uid
+    username  = user_data.get("lamix_username", "")
+    password  = user_data.get("lamix_password", "")
+    seen_file = user_data.get("seen_file", f"seen_{uid}.json")
 
     if not username or not password:
         print(f"[{username}] credential নেই, skip।")
         return
 
-    print(f"[{username}] শুরু হচ্ছে...")
+    print(f"[{username}] শুরু হচ্ছে... (seen file: {seen_file})")
     session = do_login(username, password)
 
     if not session:
@@ -268,8 +268,8 @@ def user_worker(uid, user_data, all_seen, all_seen_lock):
         "🔄 চেক হবে: প্রতি ১ সেকেন্ডে"
     )
 
-    with all_seen_lock:
-        seen_ids = set(all_seen.get(uid, []))
+    # আলাদা ফাইল থেকে seen IDs লোড
+    seen_ids = load_seen(seen_file)
 
     start_time = time.time()
     last_push  = time.time()
@@ -294,17 +294,24 @@ def user_worker(uid, user_data, all_seen, all_seen_lock):
             print(f"[{username}] check error: {e}")
 
         if new_found or (time.time() - last_push >= 60):
-            with all_seen_lock:
-                all_seen[uid] = list(seen_ids)
-            save_all_seen(all_seen)
+            save_seen(seen_file, seen_ids)
+            push_seen(seen_file)
             last_push = time.time()
 
         time.sleep(CHECK_INTERVAL)
 
-    with all_seen_lock:
-        all_seen[uid] = list(seen_ids)
-    save_all_seen(all_seen)
-    push_seen()
+    # ── Loop শেষ — final save + বন্ধ notification ──
+    save_seen(seen_file, seen_ids)
+    push_seen(seen_file)
+
+    send_telegram(tg_id,
+        "⛔ <b>SMS চেকার বন্ধ হয়ে গেছে!</b>\n"
+        "━━━━━━━━━━━━━━━\n"
+        f"⏱ {duration_str} সময় শেষ হয়ে গেছে।\n"
+        "━━━━━━━━━━━━━━━\n"
+        "🔄 আবার চালু করতে:\n"
+        "👉 /sms_start কমান্ড দিন"
+    )
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
@@ -341,9 +348,7 @@ def main():
             except Exception as e:
                 print(f"❌ USER{i} লোডে error: {e}")
 
-    all_seen      = load_all_seen()
-    all_seen_lock = threading.Lock()
-    threads       = []
+    threads = []
 
     # ── Approved + sms_on + এই workflow এর ইউজার ──
     approved_users = {
@@ -351,8 +356,8 @@ def main():
         if u.get("status") == "approved"
         and u.get("sms_on", False)
         and (
-            not CURRENT_WORKFLOW                                  # workflow নাম না থাকলে সবাই
-            or u.get("sms_workflow", "") == CURRENT_WORKFLOW      # নাম থাকলে শুধু নিজের ইউজার
+            not CURRENT_WORKFLOW
+            or u.get("sms_workflow", "") == CURRENT_WORKFLOW
         )
     }
 
@@ -366,7 +371,7 @@ def main():
         user_data["tg_id"] = uid
         t = threading.Thread(
             target=user_worker,
-            args=(uid, user_data, all_seen, all_seen_lock),
+            args=(uid, user_data),
             daemon=True
         )
         t.start()
@@ -380,4 +385,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    
