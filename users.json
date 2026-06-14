@@ -13,9 +13,9 @@
     "tg_username": "Shakil_Is",
     "status": "approved",
     "verify_status": "done",
-    "sms_on": true,
+    "sms_on": false,
     "sms_workflow": "U2.yml",
-    "sms_start_time": "2026-06-14T14:05:47.764648",
+    "sms_start_time": "",
     "seen_file": "U2.json",
     "step": ""
   }
