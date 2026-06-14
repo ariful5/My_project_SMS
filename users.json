@@ -6,17 +6,15 @@
     "sms_on": true,
     "sms_workflow": "U1.yml",
     "sms_start_time": "2026-06-14T12:50:05.555083",
-    "seen_file": "U1.json",
-    "step": ""
+    "seen_file": "U1.json"
   },
   "6993154309": {
     "tg_username": "Shakil_Is",
-    "status": "new",
-    "verify_status": "",
+    "status": "pending",
+    "verify_status": "done",
     "sms_on": false,
     "sms_workflow": "",
     "sms_start_time": "",
-    "seen_file": "",
-    "step": ""
+    "seen_file": ""
   }
 }
