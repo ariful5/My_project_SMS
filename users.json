@@ -28,5 +28,15 @@
     "sms_start_time": "",
     "seen_file": "",
     "step": ""
+  },
+  "6703930215": {
+    "tg_username": "AuraaNFT",
+    "status": "new",
+    "verify_status": "",
+    "sms_on": false,
+    "sms_workflow": "",
+    "sms_start_time": "",
+    "seen_file": "",
+    "step": ""
   }
 }
