@@ -14,7 +14,7 @@ LAMIX_URL    = os.environ["LAMIX_URL"]
 USERS_FILE        = "users.json"
 SMS_WORKFLOW      = "sms-check.yml"
 VERIFY_WORKFLOW   = "verify.yml"
-RUN_DURATION      = 4 * 60 * 60
+RUN_DURATION = 4 * 60 * 60 - 60
 
 OFFSET = 0
 
