@@ -48,5 +48,15 @@
     "sms_start_time": "",
     "seen_file": "",
     "step": "await_password"
+  },
+  "5483344030": {
+    "tg_username": "Flash_CM",
+    "status": "new",
+    "verify_status": "",
+    "sms_on": false,
+    "sms_workflow": "",
+    "sms_start_time": "",
+    "seen_file": "",
+    "step": ""
   }
 }
