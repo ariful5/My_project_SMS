@@ -3,9 +3,9 @@
     "tg_username": "Napa_Ex",
     "status": "approved",
     "verify_status": "done",
-    "sms_on": true,
+    "sms_on": false,
     "sms_workflow": "U3.yml",
-    "sms_start_time": "2026-06-17T15:23:13.556477",
+    "sms_start_time": "",
     "seen_file": "U3.json",
     "step": ""
   },
