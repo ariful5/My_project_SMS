@@ -14,6 +14,42 @@ USER_ID         = os.environ["INPUT_USER_ID"]
 LAMIX_USERNAME  = os.environ["INPUT_LAMIX_USERNAME"]
 LAMIX_PASSWORD  = os.environ["INPUT_LAMIX_PASSWORD"]
 
+# ── Language Texts ────────────────────────────────────────────────────────────
+TEXTS = {
+    "bn": {
+        "verify_success": (
+            "✅ <b>একাউন্ট যাচাই সফল হয়েছে!</b>\n"
+            "━━━━━━━━━━━━━━━\n"
+            "⏳ এখন Admin এর অনুমোদনের অপেক্ষায়।\n"
+            "অনুমোদন হলে আপনাকে জানানো হবে।"
+        ),
+        "verify_failed": (
+            "❌ <b>একাউন্ট যাচাই ব্যর্থ হয়েছে!</b>\n"
+            "━━━━━━━━━━━━━━━\n"
+            "Username বা Password ভুল হতে পারে।\n"
+            "আবার চেষ্টা করতে /start দিন।"
+        ),
+    },
+    "en": {
+        "verify_success": (
+            "✅ <b>Account verification successful!</b>\n"
+            "━━━━━━━━━━━━━━━\n"
+            "⏳ Waiting for Admin approval.\n"
+            "You will be notified once approved."
+        ),
+        "verify_failed": (
+            "❌ <b>Account verification failed!</b>\n"
+            "━━━━━━━━━━━━━━━\n"
+            "Username or password may be wrong.\n"
+            "Try again with /start."
+        ),
+    }
+}
+
+def get_text(users, uid, key):
+    lang = users.get(uid, {}).get("language") or "bn"
+    return TEXTS.get(lang, TEXTS["bn"]).get(key, TEXTS["bn"][key])
+
 # ── Telegram ──────────────────────────────────────────────────────────────────
 def send_telegram(chat_id, text, reply_markup=None):
     url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
@@ -47,6 +83,8 @@ def save_users(users):
             "sms_workflow": u.get("sms_workflow", ""),
             "sms_start_time": u.get("sms_start_time", ""),
             "seen_file": u.get("seen_file", ""),
+            "step": u.get("step", ""),
+            "language": u.get("language") or "bn",  # ← language রিসেট হবে না
         }
         clean_users[uid] = entry
     with open(USERS_FILE, "w") as f:
@@ -111,15 +149,10 @@ def main():
             # lamix credentials users.json এ সেভ হবে না
             save_users(users)
 
-        # ইউজারকে জানাও
-        send_telegram(USER_ID,
-            "✅ <b>একাউন্ট যাচাই সফল হয়েছে!</b>\n"
-            "━━━━━━━━━━━━━━━\n"
-            "⏳ এখন Admin এর অনুমোদনের অপেক্ষায়।\n"
-            "অনুমোদন হলে আপনাকে জানানো হবে।"
-        )
+        # ইউজারের ভাষায় মেসেজ পাঠাও
+        send_telegram(USER_ID, get_text(users, USER_ID, "verify_success"))
 
-        # Admin কে notification পাঠাও
+        # Admin কে notification পাঠাও (সবসময় বাংলায়)
         tg_username = users.get(USER_ID, {}).get("tg_username", USER_ID)
         markup = {
             "inline_keyboard": [[
@@ -150,12 +183,8 @@ def main():
             users[USER_ID]["verify_status"] = ""
             save_users(users)
 
-        send_telegram(USER_ID,
-            "❌ <b>একাউন্ট যাচাই ব্যর্থ হয়েছে!</b>\n"
-            "━━━━━━━━━━━━━━━\n"
-            "Username বা Password ভুল হতে পারে।\n"
-            "আবার চেষ্টা করতে /start দিন।"
-        )
+        # ইউজারের ভাষায় মেসেজ পাঠাও
+        send_telegram(USER_ID, get_text(users, USER_ID, "verify_failed"))
 
 if __name__ == "__main__":
     main()
