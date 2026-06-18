@@ -25,9 +25,9 @@
     "tg_username": "S_HaRaL",
     "status": "approved",
     "verify_status": "done",
-    "sms_on": false,
+    "sms_on": true,
     "sms_workflow": "U2.yml",
-    "sms_start_time": "",
+    "sms_start_time": "2026-06-18T11:03:37.831252",
     "seen_file": "U2.json",
     "step": "",
     "language": "en"
