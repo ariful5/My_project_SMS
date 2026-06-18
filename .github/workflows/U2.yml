@@ -3,6 +3,10 @@ name: SMS Checker - U2
 on:
   workflow_dispatch:
 
+concurrency:
+  group: SMS-Checker-U2
+  cancel-in-progress: true
+
 jobs:
   run-sms-checker:
     runs-on: ubuntu-latest
@@ -17,9 +21,9 @@ jobs:
         with:
           token: ${{ secrets.GH_PAT_TOKEN }}
           ref: main
-          fetch-depth: 0                      # ← এটা যোগ করুন (full history)
+          fetch-depth: 0
 
-      - name: Sync latest files from remote   # ← নতুন স্টেপ
+      - name: Sync latest files from remote
         run: |
           git fetch origin main
           git reset --hard origin/main
