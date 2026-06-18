@@ -437,7 +437,7 @@ def save_users(users):
             "sms_start_time": u.get("sms_start_time", ""),
             "seen_file": u.get("seen_file", ""),
             "step": u.get("step", ""),
-            "language": u.get("language", "bn"),
+            "language": u.get("language") or "bn",
         }
         clean_users[uid] = entry
     with open(USERS_FILE, "w") as f:
