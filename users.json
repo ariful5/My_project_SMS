@@ -23,8 +23,8 @@
   },
   "7198003817": {
     "tg_username": "S_HaRaL",
-    "status": "new",
-    "verify_status": "",
+    "status": "pending",
+    "verify_status": "done",
     "sms_on": false,
     "sms_workflow": "",
     "sms_start_time": "",
