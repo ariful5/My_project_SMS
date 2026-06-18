@@ -455,7 +455,11 @@ def push_file(filename):
     os.system('git config user.name "GitHub Action"')
     os.system(f'git add {filename}')
     os.system('git commit -m "chore: update users" || true')
-    os.system('git push --force || true')
+    # push retry: একবার fail হলে pull করে আবার push
+    ret = os.system('git push --force 2>/dev/null')
+    if ret != 0:
+        os.system('git pull --rebase --autostash origin main 2>/dev/null || true')
+        os.system('git push --force || true')
 
 # ── Collect Old Users ─────────────────────────────────────────────────────────
 def collect_old_users(users):
@@ -1212,9 +1216,13 @@ def main():
             # fresh data লোড
             fresh = load_users()
             for _uid, _u in users.items():
-                if "_temp_lamix_username" in _u:
-                    if _uid in fresh:
+                if _uid in fresh:
+                    # in-memory temp field carry করো
+                    if "_temp_lamix_username" in _u:
                         fresh[_uid]["_temp_lamix_username"] = _u["_temp_lamix_username"]
+                    # language: in-memory তে সেট থাকলে এবং fresh এ খালি হলে preserve করো
+                    if _u.get("language") and not fresh[_uid].get("language"):
+                        fresh[_uid]["language"] = _u["language"]
             users = fresh
 
             uid      = str(user_id)
