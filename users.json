@@ -3,11 +3,12 @@
     "tg_username": "Napa_Ex",
     "status": "approved",
     "verify_status": "done",
-    "sms_on": true,
+    "sms_on": false,
     "sms_workflow": "U1.yml",
-    "sms_start_time": "2026-06-18T01:47:13.956197",
+    "sms_start_time": "",
     "seen_file": "U1.json",
-    "step": ""
+    "step": "",
+    "language": "bn"
   },
   "6993154309": {
     "tg_username": "Shakil_Is",
@@ -17,7 +18,8 @@
     "sms_workflow": "",
     "sms_start_time": "",
     "seen_file": "",
-    "step": ""
+    "step": "",
+    "language": "bn"
   },
   "7165109999": {
     "tg_username": "Napa_Ex2",
@@ -27,7 +29,8 @@
     "sms_workflow": "",
     "sms_start_time": "",
     "seen_file": "",
-    "step": ""
+    "step": "",
+    "language": "bn"
   },
   "6703930215": {
     "tg_username": "AuraaNFT",
@@ -37,7 +40,8 @@
     "sms_workflow": "",
     "sms_start_time": "",
     "seen_file": "",
-    "step": ""
+    "step": "",
+    "language": "bn"
   },
   "7029477436": {
     "tg_username": "Rifat237",
@@ -47,7 +51,8 @@
     "sms_workflow": "",
     "sms_start_time": "",
     "seen_file": "",
-    "step": ""
+    "step": "",
+    "language": "bn"
   },
   "5483344030": {
     "tg_username": "Flash_CM",
@@ -57,7 +62,8 @@
     "sms_workflow": "",
     "sms_start_time": "",
     "seen_file": "",
-    "step": ""
+    "step": "",
+    "language": "bn"
   },
   "6812777738": {
     "tg_username": "saiful_ahmed_suaif",
@@ -67,7 +73,8 @@
     "sms_workflow": "",
     "sms_start_time": "",
     "seen_file": "",
-    "step": ""
+    "step": "",
+    "language": "bn"
   },
   "5433864033": {
     "tg_username": "rakib4074",
@@ -77,7 +84,8 @@
     "sms_workflow": "",
     "sms_start_time": "",
     "seen_file": "",
-    "step": ""
+    "step": "",
+    "language": "bn"
   },
   "7453881513": {
     "tg_username": "Sadik8287",
@@ -87,6 +95,7 @@
     "sms_workflow": "",
     "sms_start_time": "",
     "seen_file": "",
-    "step": ""
+    "step": "",
+    "language": "bn"
   }
 }
