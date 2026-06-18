@@ -6,9 +6,7 @@
     "sms_on": false,
     "sms_workflow": "U1.yml",
     "sms_start_time": "",
-    "seen_file": "U1.json",
-    "step": "",
-    "language": ""
+    "seen_file": "U1.json"
   },
   "6993154309": {
     "tg_username": "Shakil_Is",
@@ -17,9 +15,7 @@
     "sms_on": false,
     "sms_workflow": "",
     "sms_start_time": "",
-    "seen_file": "",
-    "step": "",
-    "language": ""
+    "seen_file": ""
   },
   "7165109999": {
     "tg_username": "Napa_Ex2",
@@ -28,9 +24,7 @@
     "sms_on": false,
     "sms_workflow": "",
     "sms_start_time": "",
-    "seen_file": "",
-    "step": "",
-    "language": ""
+    "seen_file": ""
   },
   "6703930215": {
     "tg_username": "AuraaNFT",
@@ -39,9 +33,7 @@
     "sms_on": false,
     "sms_workflow": "",
     "sms_start_time": "",
-    "seen_file": "",
-    "step": "",
-    "language": ""
+    "seen_file": ""
   },
   "7029477436": {
     "tg_username": "Rifat237",
@@ -50,9 +42,7 @@
     "sms_on": false,
     "sms_workflow": "",
     "sms_start_time": "",
-    "seen_file": "",
-    "step": "",
-    "language": ""
+    "seen_file": ""
   },
   "5483344030": {
     "tg_username": "Flash_CM",
@@ -61,9 +51,7 @@
     "sms_on": false,
     "sms_workflow": "",
     "sms_start_time": "",
-    "seen_file": "",
-    "step": "",
-    "language": ""
+    "seen_file": ""
   },
   "6812777738": {
     "tg_username": "saiful_ahmed_suaif",
@@ -72,9 +60,7 @@
     "sms_on": false,
     "sms_workflow": "",
     "sms_start_time": "",
-    "seen_file": "",
-    "step": "",
-    "language": ""
+    "seen_file": ""
   },
   "5433864033": {
     "tg_username": "rakib4074",
@@ -83,9 +69,7 @@
     "sms_on": false,
     "sms_workflow": "",
     "sms_start_time": "",
-    "seen_file": "",
-    "step": "",
-    "language": ""
+    "seen_file": ""
   },
   "7453881513": {
     "tg_username": "Sadik8287",
@@ -94,9 +78,7 @@
     "sms_on": false,
     "sms_workflow": "",
     "sms_start_time": "",
-    "seen_file": "",
-    "step": "",
-    "language": ""
+    "seen_file": ""
   },
   "7479835934": {
     "tg_username": "Jahid_662",
@@ -105,8 +87,6 @@
     "sms_on": false,
     "sms_workflow": "",
     "sms_start_time": "",
-    "seen_file": "",
-    "step": "",
-    "language": "en"
+    "seen_file": ""
   }
 }
