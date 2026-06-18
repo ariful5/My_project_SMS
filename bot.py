@@ -12,6 +12,7 @@ GH_REPO      = os.environ["GH_REPO"]
 LAMIX_URL    = os.environ["LAMIX_URL"]
 
 USERS_FILE        = "users.json"
+LANG_FILE         = "lang.json"  # language পার্মানেন্ট সেভ করার জন্য
 SMS_WORKFLOW      = "sms-check.yml"
 VERIFY_WORKFLOW   = "verify.yml"
 RUN_DURATION = 4 * 60 * 60 - 60
@@ -425,9 +426,14 @@ def load_users():
     if os.path.exists(USERS_FILE):
         with open(USERS_FILE) as f:
             data = json.load(f)
+        # lang store থেকে language restore করো (race condition এ হারিয়ে গেলেও ফেরত পাবে)
+        lang_store = load_lang_store()
         for uid, u in data.items():
-            if "language" not in u:
+            if "language" not in u or u.get("language") not in ("bn", "en", ""):
                 u["language"] = ""
+            # lang store এ valid language থাকলে সেটাই ব্যবহার করো
+            if uid in lang_store and lang_store[uid] in ("bn", "en"):
+                u["language"] = lang_store[uid]
         return data
     return {}
 
@@ -443,7 +449,7 @@ def save_users(users):
             "sms_start_time": u.get("sms_start_time", ""),
             "seen_file": u.get("seen_file", ""),
             "step": u.get("step", ""),
-            "language": u.get("language", ""),
+            "language": u.get("language", "") if u.get("language") in ("bn", "en", "") else "",
         }
         clean_users[uid] = entry
     with open(USERS_FILE, "w") as f:
@@ -456,6 +462,42 @@ def push_file(filename):
     os.system(f'git add {filename}')
     os.system('git commit -m "chore: update users" || true')
     # push retry: একবার fail হলে pull করে আবার push
+    ret = os.system('git push --force 2>/dev/null')
+    if ret != 0:
+        os.system('git pull --rebase --autostash origin main 2>/dev/null || true')
+        os.system('git push --force || true')
+
+# ── Language Persistence ─────────────────────────────────────────────────────
+def load_lang_store():
+    """language আলাদা ফাইলে সেভ থাকে যাতে users.json race condition এ হারিয়ে না যায়"""
+    try:
+        if os.path.exists(LANG_FILE):
+            with open(LANG_FILE) as f:
+                data = json.load(f)
+                # শুধু language field গুলো রিটার্ন করো
+                return {uid: v for uid, v in data.items() if isinstance(v, str) and v in ("bn", "en")}
+    except:
+        pass
+    return {}
+
+def save_lang_store(users):
+    """সব ইউজারের language আলাদা file এ সেভ করো"""
+    try:
+        lang_data = {}
+        if os.path.exists(LANG_FILE):
+            with open(LANG_FILE) as f:
+                lang_data = json.load(f)
+    except:
+        lang_data = {}
+    for uid, u in users.items():
+        lang = u.get("language", "")
+        if lang in ("bn", "en"):
+            lang_data[uid] = lang
+    with open(LANG_FILE, "w") as f:
+        json.dump(lang_data, f, indent=2, ensure_ascii=False)
+    # এই ফাইলও push করো
+    os.system(f'git add {LANG_FILE}')
+    os.system('git commit -m "chore: update lang" || true')
     ret = os.system('git push --force 2>/dev/null')
     if ret != 0:
         os.system('git pull --rebase --autostash origin main 2>/dev/null || true')
@@ -866,6 +908,7 @@ def handle_callback(callback, users):
             users[uid] = make_new_user_entry(username)
         users[uid]["language"] = lang_choice
         save_users(users)
+        save_lang_store(users)  # language আলাদা file এ পার্মানেন্ট সেভ
         answer_callback(cb_id, "✅")
         send_message(chat_id, TEXTS[lang_choice]["language_set"])
 
