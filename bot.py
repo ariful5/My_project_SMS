@@ -309,7 +309,9 @@ SUPPORT_MARKUP = {
 def get_lang(users, uid):
     """ইউজারের ভাষা রিটার্ন করে, ডিফল্ট বাংলা"""
     if uid in users:
-        return users[uid].get("language", "bn")
+        lang = users[uid].get("language", "")
+        if lang in ("bn", "en"):
+            return lang
     return "bn"
 
 def t(users, uid, key, **kwargs):
@@ -422,7 +424,11 @@ def load_users():
     os.system('git pull --rebase --autostash origin main 2>/dev/null || true')
     if os.path.exists(USERS_FILE):
         with open(USERS_FILE) as f:
-            return json.load(f)
+            data = json.load(f)
+        for uid, u in data.items():
+            if "language" not in u:
+                u["language"] = ""
+        return data
     return {}
 
 def save_users(users):
@@ -437,7 +443,7 @@ def save_users(users):
             "sms_start_time": u.get("sms_start_time", ""),
             "seen_file": u.get("seen_file", ""),
             "step": u.get("step", ""),
-            "language": u.get("language", "bn"),
+            "language": u.get("language", ""),
         }
         clean_users[uid] = entry
     with open(USERS_FILE, "w") as f:
@@ -891,7 +897,7 @@ def handle_callback(callback, users):
         answer_callback(cb_id, "ইউজার পাওয়া যায়নি।")
         return users
 
-    target_lang = users[target_id].get("language", "bn") or "bn"
+    target_lang = get_lang(users, target_id)
 
     if action == "approve":
         users[target_id]["status"] = "approved"
@@ -953,7 +959,7 @@ def handle_verify_result(user_id, success, lamix_username, lamix_password, users
         return users
 
     tg_username = users[uid].get("tg_username", "")
-    lang = users[uid].get("language", "bn") or "bn"
+    lang = get_lang(users, uid)
 
     if success:
         users[uid]["status"] = "pending"
@@ -996,7 +1002,7 @@ def handle_admin_command(chat_id, text, users):
                 save_users(users)
                 wf_msg = f"\n📋 Workflow: <code>{workflow_name}</code>\n📄 Seen File: <code>{seen_file}</code>" if workflow_name else "\n⚠️ Workflow সেট হয়নি! /setwf দিয়ে সেট করুন।"
                 send_message(chat_id, f"✅ @{target_username} কে approve করা হয়েছে।{wf_msg}")
-                target_lang = users[uid].get("language", "bn") or "bn"
+                target_lang = get_lang(users, uid)
                 send_message(int(uid), TEXTS[target_lang]["approved_notice"])
                 found = True
                 break
@@ -1031,7 +1037,7 @@ def handle_admin_command(chat_id, text, users):
                 users[uid]["status"] = "banned"
                 save_users(users)
                 send_message(chat_id, f"🚫 @{target_username} কে ban করা হয়েছে।")
-                target_lang = users[uid].get("language", "bn") or "bn"
+                target_lang = get_lang(users, uid)
                 send_message(int(uid), TEXTS[target_lang]["banned_notice"])
                 found = True
                 break
