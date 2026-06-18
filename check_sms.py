@@ -17,6 +17,82 @@ RUN_DURATION     = 195 * 60
 CHECK_INTERVAL   = 1
 CURRENT_WORKFLOW = os.environ.get("WORKFLOW_NAME", "")
 
+# ── Language Texts ────────────────────────────────────────────────────────────
+TEXTS = {
+    "bn": {
+        "login_failed": (
+            "❌ <b>Login ব্যর্থ হয়েছে!</b>\n"
+            "━━━━━━━━━━━━━━━\n"
+            "⚠️ Username অথবা Password ভুল আছে।\n"
+            "সঠিক তথ্য দিয়ে আবার চেষ্টা করুন।"
+        ),
+        "sms_started": (
+            "✅ <b>SMS চেকার চালু হয়েছে!</b>\n"
+            "━━━━━━━━━━━━━━━\n"
+            "⏱ চলবে: {duration}\n"
+            "🔄 চেক হবে: প্রতি ১ সেকেন্ডে"
+        ),
+        "sms_stopped": (
+            "⛔ <b>SMS চেকার বন্ধ হয়ে গেছে!</b>\n"
+            "━━━━━━━━━━━━━━━\n"
+            "⏱ {duration} সময় শেষ হয়ে গেছে।\n"
+            "━━━━━━━━━━━━━━━\n"
+            "🔄 আবার চালু করতে:\n"
+            "👉 /sms_start কমান্ড দিন"
+        ),
+        "new_sms": "🔔 নতুন SMS এসেছে!",
+        "number": "📞 Number",
+        "range": "📍 Range",
+        "cli": "🔖 CLI",
+        "today": "📊 Today",
+        "sms_count": "SMS",
+        "time_hour": "ঘন্টা",
+        "time_min": "মিনিট",
+        "time_sec": "সেকেন্ড",
+    },
+    "en": {
+        "login_failed": (
+            "❌ <b>Login failed!</b>\n"
+            "━━━━━━━━━━━━━━━\n"
+            "⚠️ Username or password is incorrect.\n"
+            "Please try again with correct credentials."
+        ),
+        "sms_started": (
+            "✅ <b>SMS checker started!</b>\n"
+            "━━━━━━━━━━━━━━━\n"
+            "⏱ Duration: {duration}\n"
+            "🔄 Checking every 1 second"
+        ),
+        "sms_stopped": (
+            "⛔ <b>SMS checker stopped!</b>\n"
+            "━━━━━━━━━━━━━━━\n"
+            "⏱ {duration} has elapsed.\n"
+            "━━━━━━━━━━━━━━━\n"
+            "🔄 To start again:\n"
+            "👉 Send /sms_start"
+        ),
+        "new_sms": "🔔 New SMS received!",
+        "number": "📞 Number",
+        "range": "📍 Range",
+        "cli": "🔖 CLI",
+        "today": "📊 Today",
+        "sms_count": "SMS",
+        "time_hour": "hr",
+        "time_min": "min",
+        "time_sec": "sec",
+    }
+}
+
+def get_lang(user_data):
+    return user_data.get("language") or "bn"
+
+def t(user_data, key, **kwargs):
+    lang = get_lang(user_data)
+    text = TEXTS.get(lang, TEXTS["bn"]).get(key, TEXTS["bn"].get(key, ""))
+    if kwargs:
+        text = text.format(**kwargs)
+    return text
+
 # ── Country Price List ────────────────────────────────────────────────────────
 COUNTRY_PRICES = {
     "afghanistan": 0.0078, "algeria": 0.0108, "angola": 0.009, "argentina": 0.0078,
@@ -109,7 +185,17 @@ def get_cli_count_today(rows, cli):
             count += 1
     return count
 
-def build_message(row, total_today_number, daily_income, cli_count):
+def seconds_to_duration(seconds, user_data):
+    h = seconds // 3600
+    m = (seconds % 3600) // 60
+    s = seconds % 60
+    parts = []
+    if h: parts.append(f"{h} {t(user_data, 'time_hour')}")
+    if m: parts.append(f"{m} {t(user_data, 'time_min')}")
+    if s or not parts: parts.append(f"{s} {t(user_data, 'time_sec')}")
+    return " ".join(parts)
+
+def build_message(row, total_today_number, daily_income, cli_count, user_data):
     date_str = str(row[0]) if len(row) > 0 else "N/A"
     range_   = str(row[1]) if len(row) > 1 else "N/A"
     number   = str(row[2]) if len(row) > 2 else "N/A"
@@ -118,12 +204,12 @@ def build_message(row, total_today_number, daily_income, cli_count):
     sms_text = sms_text.replace("$", "").strip()
 
     return (
-        f"🔔 নতুন SMS এসেছে!\n"
+        f"{t(user_data, 'new_sms')}\n"
         f"━━━━━━━━━━━━━━━\n"
-        f"📞 Number : {number}\n"
-        f"📍 Range  : {range_}\n"
-        f"🔖 CLI    : {cli}\n"
-        f"📊 Today  : {total_today_number} SMS\n"
+        f"{t(user_data, 'number')} : {number}\n"
+        f"{t(user_data, 'range')}  : {range_}\n"
+        f"{t(user_data, 'cli')}    : {cli}\n"
+        f"{t(user_data, 'today')}  : {total_today_number} {t(user_data, 'sms_count')}\n"
         f"━━━━━━━━━━━━━━━\n"
         f"💬 {sms_text} [{cli_count}]\n"
         f"━━━━━━━━━━━━━━━\n"
@@ -247,29 +333,12 @@ def user_worker(uid, user_data):
     session = do_login(username, password)
 
     if not session:
-        send_telegram(tg_id,
-            "❌ <b>Login ব্যর্থ হয়েছে!</b>\n"
-            "━━━━━━━━━━━━━━━\n"
-            "⚠️ Username অথবা Password ভুল আছে।\n"
-            "সঠিক তথ্য দিয়ে আবার চেষ্টা করুন।"
-        )
+        send_telegram(tg_id, t(user_data, "login_failed"))
         return
 
-    h = RUN_DURATION // 3600
-    m = (RUN_DURATION % 3600) // 60
-    s = RUN_DURATION % 60
-    parts = []
-    if h: parts.append(f"{h} ঘন্টা")
-    if m: parts.append(f"{m} মিনিট")
-    if s: parts.append(f"{s} সেকেন্ড")
-    duration_str = " ".join(parts)
+    duration_str = seconds_to_duration(RUN_DURATION, user_data)
 
-    send_telegram(tg_id,
-        "✅ <b>SMS চেকার চালু হয়েছে!</b>\n"
-        "━━━━━━━━━━━━━━━\n"
-        f"⏱ চলবে: {duration_str}\n"
-        "🔄 চেক হবে: প্রতি ১ সেকেন্ডে"
-    )
+    send_telegram(tg_id, t(user_data, "sms_started", duration=duration_str))
 
     seen_ids = load_seen(seen_file)
 
@@ -290,7 +359,7 @@ def user_worker(uid, user_data):
         new_found = False
         try:
             for row, total, income, cli_count in check_once(session, seen_ids):
-                send_telegram(tg_id, build_message(row, total, income, cli_count))
+                send_telegram(tg_id, build_message(row, total, income, cli_count, user_data))
                 new_found = True
         except Exception as e:
             print(f"[{username}] check error: {e}")
@@ -305,14 +374,7 @@ def user_worker(uid, user_data):
     save_seen(seen_file, seen_ids)
     push_seen(seen_file)
 
-    send_telegram(tg_id,
-        "⛔ <b>SMS চেকার বন্ধ হয়ে গেছে!</b>\n"
-        "━━━━━━━━━━━━━━━\n"
-        f"⏱ {duration_str} সময় শেষ হয়ে গেছে।\n"
-        "━━━━━━━━━━━━━━━\n"
-        "🔄 আবার চালু করতে:\n"
-        "👉 /sms_start কমান্ড দিন"
-    )
+    send_telegram(tg_id, t(user_data, "sms_stopped", duration=duration_str))
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
@@ -342,7 +404,8 @@ def main():
                             "lamix_username": username,
                             "lamix_password": password,
                             "status": "approved",
-                            "sms_on": True
+                            "sms_on": True,
+                            "language": "bn"
                         }
                     print(f"✅ USER{i} লোড সম্পন্ন: {username}")
             except Exception as e:
@@ -368,17 +431,17 @@ def main():
 
     for uid, user_data in approved_users.items():
         user_data["tg_id"] = uid
-        t = threading.Thread(
+        th = threading.Thread(
             target=user_worker,
             args=(uid, user_data),
             daemon=True
         )
-        t.start()
-        threads.append(t)
+        th.start()
+        threads.append(th)
         time.sleep(0.5)
 
-    for t in threads:
-        t.join()
+    for th in threads:
+        th.join()
 
     print("✅ সব thread সম্পন্ন।")
 
