@@ -13,7 +13,7 @@ TG_TOKEN         = os.environ["TELEGRAM_TOKEN"]
 ADMIN_ID         = os.environ["ADMIN_CHAT_ID"]
 USERS_FILE       = "users.json"
 DEVELOPER        = "https://t.me/Napa_Ex"
-RUN_DURATION     = 195 * 60
+RUN_DURATION = 359 * 60
 CHECK_INTERVAL   = 1
 CURRENT_WORKFLOW = os.environ.get("WORKFLOW_NAME", "")
 
