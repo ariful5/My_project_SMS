@@ -34,12 +34,12 @@
   },
   "8962236195": {
     "tg_username": "8962236195",
-    "status": "pending",
+    "status": "approved",
     "verify_status": "done",
     "sms_on": false,
-    "sms_workflow": "",
+    "sms_workflow": "U3.yml",
     "sms_start_time": "",
-    "seen_file": "",
+    "seen_file": "U3.json",
     "step": "",
     "language": "en"
   }
