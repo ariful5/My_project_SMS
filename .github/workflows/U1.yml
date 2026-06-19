@@ -10,7 +10,7 @@ concurrency:
 jobs:
   run-sms-checker:
     runs-on: ubuntu-latest
-    timeout-minutes: 210
+    timeout-minutes: 360
 
     steps:
       - name: Wait for JSON update
