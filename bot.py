@@ -774,7 +774,7 @@ def handle_status(chat_id, user_id, users):
             try:
                 start_dt = datetime.fromisoformat(start_time_str)
                 elapsed = (datetime.utcnow() - start_dt).total_seconds()
-                worker_runtime = 195 * 60
+                worker_runtime = 359 * 60
                 remaining = max(0, int(worker_runtime - elapsed))
                 remaining_str = f"\n{txt['remaining']}: {seconds_to_hms(remaining, lang)}"
             except:
