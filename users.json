@@ -36,9 +36,9 @@
     "tg_username": "8962236195",
     "status": "approved",
     "verify_status": "done",
-    "sms_on": false,
+    "sms_on": true,
     "sms_workflow": "U3.yml",
-    "sms_start_time": "",
+    "sms_start_time": "2026-06-19T05:40:17.474485",
     "seen_file": "U3.json",
     "step": "",
     "language": "en"
