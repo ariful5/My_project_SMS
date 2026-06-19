@@ -40,7 +40,7 @@
     "sms_workflow": "",
     "sms_start_time": "",
     "seen_file": "",
-    "step": "await_username",
+    "step": "await_password",
     "language": "en"
   }
 }
