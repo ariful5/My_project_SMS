@@ -56,8 +56,8 @@
   },
   "5433864033": {
     "tg_username": "rakib4074",
-    "status": "new",
-    "verify_status": "",
+    "status": "pending",
+    "verify_status": "done",
     "sms_on": false,
     "sms_workflow": "",
     "sms_start_time": "",
