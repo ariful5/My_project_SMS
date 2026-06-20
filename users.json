@@ -14,9 +14,9 @@
     "tg_username": "Napa_Ex",
     "status": "approved",
     "verify_status": "done",
-    "sms_on": true,
+    "sms_on": false,
     "sms_workflow": "U1.yml",
-    "sms_start_time": "2026-06-20T11:15:44.585905",
+    "sms_start_time": "",
     "seen_file": "U1.json",
     "step": "",
     "language": "bn"
