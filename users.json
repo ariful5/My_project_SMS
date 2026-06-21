@@ -58,9 +58,9 @@
     "tg_username": "rakib4074",
     "status": "approved",
     "verify_status": "done",
-    "sms_on": false,
+    "sms_on": true,
     "sms_workflow": "U4.yml",
-    "sms_start_time": "",
+    "sms_start_time": "2026-06-21T01:59:24.810672",
     "seen_file": "U4.json",
     "step": "",
     "language": "bn"
