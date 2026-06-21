@@ -78,12 +78,12 @@
   },
   "7742092700": {
     "tg_username": "7742092700",
-    "status": "pending",
+    "status": "approved",
     "verify_status": "done",
     "sms_on": false,
-    "sms_workflow": "",
+    "sms_workflow": "U5.yml",
     "sms_start_time": "",
-    "seen_file": "",
+    "seen_file": "U5.json",
     "step": "",
     "language": "bn"
   }
