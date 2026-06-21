@@ -56,12 +56,12 @@
   },
   "5433864033": {
     "tg_username": "rakib4074",
-    "status": "pending",
+    "status": "approved",
     "verify_status": "done",
     "sms_on": false,
-    "sms_workflow": "",
+    "sms_workflow": "U4.yml",
     "sms_start_time": "",
-    "seen_file": "",
+    "seen_file": "U4.json",
     "step": "",
     "language": "bn"
   },
