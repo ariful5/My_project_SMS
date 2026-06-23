@@ -97,5 +97,16 @@
     "seen_file": "",
     "step": "await_username",
     "language": "en"
+  },
+  "1182837155": {
+    "tg_username": "ShimulXO",
+    "status": "new",
+    "verify_status": "",
+    "sms_on": false,
+    "sms_workflow": "",
+    "sms_start_time": "",
+    "seen_file": "",
+    "step": "",
+    "language": "bn"
   }
 }
