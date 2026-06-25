@@ -119,5 +119,16 @@
     "seen_file": "",
     "step": "await_username",
     "language": "en"
+  },
+  "7590098272": {
+    "tg_username": "NAIMISLAM0120",
+    "status": "new",
+    "verify_status": "",
+    "sms_on": false,
+    "sms_workflow": "",
+    "sms_start_time": "",
+    "seen_file": "",
+    "step": "",
+    "language": "bn"
   }
 }
